@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07110f"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>La Caja App | Gestión financiera</title>
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg"><link rel="apple-touch-icon" href="./icon.svg">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{ink:'#070a0d',panel:'#0d131a',pino:'#0b5345',live:'#10b981',sky:'#38bdf8',amber:'#f59e0b'}}}}</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+<style>
+[x-cloak]{display:none!important}*{box-sizing:border-box;scrollbar-width:none}*::-webkit-scrollbar{display:none}
+body{margin:0;background:#070a0d;color:#f1f6f4;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased;background-image:radial-gradient(circle at 76% -14%,rgba(16,185,129,.12),transparent 34%),radial-gradient(circle at 2% 100%,rgba(11,83,69,.23),transparent 32%)}
+.panel{background:linear-gradient(160deg,#111a22,#0a1015);border:1px solid rgba(130,154,160,.13);box-shadow:0 25px 70px rgba(0,0,0,.25)}
+.card{background:linear-gradient(155deg,#111922,#090e14);border:1px solid rgba(130,154,160,.1)}
+.neon{position:relative;overflow:hidden}.neon:before{content:"";position:absolute;top:-1px;left:8%;right:8%;height:2px;background:linear-gradient(90deg,transparent,#10b981,#0b5345,transparent);box-shadow:0 0 15px #10b981}
+.field{width:100%;background:#080c11;color:#eaf4f1;border:1px solid rgba(130,154,160,.15);border-radius:13px;padding:.83rem .95rem;outline:none;transition:.18s}
+.field:focus{border-color:rgba(16,185,129,.5);box-shadow:0 0 0 3px rgba(16,185,129,.1)}.field::placeholder{color:#637489}
+select.field,input[type=date].field{color-scheme:dark}select.field option{background:#080c11;color:#edf4f1}
+.label{display:block;font-size:.72rem;color:#8192a7;margin-bottom:.42rem}.btn{background:#0b5345;transition:.18s}.btn:hover{background:#126c59}.btn:disabled{opacity:.5}
+.dot{height:8px;width:8px;border-radius:100%;background:#10b981;box-shadow:0 0 11px #10b981;animation:pulse 1.7s infinite}
+@keyframes pulse{0%,100%{opacity:.45;transform:scale(.86)}50%{opacity:1;transform:scale(1.35)}}
+.overlay{background:rgba(2,4,5,.76);backdrop-filter:blur(7px)}.safe{padding-bottom:max(.65rem,env(safe-area-inset-bottom))}
+.badge{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);color:#34d399}
+</style>
+<script>
+const URL_SUPA='https://kgvbypdvanbrpkiatjgv.supabase.co';
+const KEY_SUPA='sb_publishable_4bROoG3dop0v2MKMnq8ZEw_pvECwN2v';
+function cajaCloud(){return {
+ sb:null,user:null,org:null,role:null,settings:null,loading:true,busy:false,view:'dashboard',error:'',toast:'',installPrompt:null,help:false,
+ login:{email:'',password:''}, modalCustomer:false,modalOp:false,modalPay:false,modalCharge:false, tab:'credito', currentCustomer:null,currentAccount:null,
+ customers:[],credits:[],loans:[],installments:[],exchanges:[],payments:[],cash:[], charts:{},
+ customer:{full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''},
+ op:{customer_id:'',concept:'',notes:'',method:'cash_usd',reference:'',credit:{principal:'',initial:'',due:''},loan:{principal:'',interest:'',count:'',frequency:'monthly',start:new Date().toISOString().slice(0,10),first:''},exchange:{type:'currency_sale',source:'USD',target:'VES',amount:'',rate:'',fee:''}},
+ payment:{amount:'',method:'pago_movil',reference:''}, chargeMode:'installment',
+ currencies:['USD','VES','USDT','USDC','EUR','COP','PEN','CLP','ARS','BRL','MXN','DOP','PAB','CRC','GTQ','HNL','NIO','BOB','PYG','UYU','CAD'],
+ types:[['currency_sale','Venta de divisas'],['currency_purchase','Compra de divisas'],['remittance_send','Envío de remesa'],['remittance_receive','Recepción de remesa'],['cash_for_transfer','Efectivo por transferencia'],['arbitrage','Arbitraje'],['stablecoin_exchange','Stablecoin / cripto'],['border_exchange','Cambio fronterizo']],
+ methods:[['cash_usd','Efectivo USD'],['cash_ves','Efectivo Bs'],['pago_movil','Pago móvil'],['bank_transfer','Transferencia'],['zelle','Zelle'],['binance','Binance'],['zinli','Zinli'],['paypal','PayPal'],['other','Otro']],
+ async init(){
+  this.sb=supabase.createClient(URL_SUPA,KEY_SUPA,{auth:{persistSession:true,autoRefreshToken:true}});
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();this.installPrompt=e});
+  let {data}=await this.sb.auth.getSession();this.user=data.session?.user||null;
+  if(this.user) await this.workspace(); this.loading=false;
+  this.sb.auth.onAuthStateChange(async(_,s)=>{this.user=s?.user||null;if(this.user) await this.workspace();else {this.org=null;this.resetData()}});
+ },
+ async signin(){this.busy=true;this.error='';let {data,error}=await this.sb.auth.signInWithPassword({email:this.login.email.trim(),password:this.login.password});this.busy=false;if(error){this.error='Correo o contraseña incorrectos.';return}this.user=data.user;await this.workspace()},
+ async signout(){await this.sb.auth.signOut();this.org=null;this.user=null;this.view='dashboard'},
+ resetData(){this.customers=[];this.credits=[];this.loans=[];this.installments=[];this.exchanges=[];this.payments=[];this.cash=[]},
+ async workspace(){
+  this.loading=true;let {data:m,error}=await this.sb.from('organization_members').select('organization_id,role').eq('user_id',this.user.id).eq('status','active').limit(1);
+  if(error||!m?.length){this.error='Tu cuenta no tiene un negocio activo asignado.';this.loading=false;return}
+  this.role=m[0].role;let id=m[0].organization_id;
+  let [o,s]=await Promise.all([this.sb.from('organizations').select('*').eq('id',id).single(),this.sb.from('organization_settings').select('*').eq('organization_id',id).single()]);
+  if(o.error){this.error='No se pudo abrir tu empresa.';this.loading=false;return} this.org=o.data;this.settings=s.data||{organization_id:id,reference_exchange_rate:0};
+  this.op.exchange.rate=this.settings.reference_exchange_rate||'';await this.refresh();this.loading=false;
+ },
+ async refresh(){
+  if(!this.org)return;let id=this.org.id;
+  let r=await Promise.all(['customers','credit_accounts','loans','installments','exchange_operations','payments_received','cash_movements'].map(t=>this.sb.from(t).select('*').eq('organization_id',id).order('created_at',{ascending:false})));
+  let bad=r.find(x=>x.error);if(bad){this.note('Error: '+bad.error.message);return}
+  [this.customers,this.credits,this.loans,this.installments,this.exchanges,this.payments,this.cash]=r.map(x=>x.data);
+  this.$nextTick(()=>this.graphs());
+ },
+ async addCustomer(){
+  if(!this.customer.full_name.trim()||!this.customer.document_id.trim()||!this.customer.phone.trim()){this.note('Completa nombre, cédula y teléfono.');return}
+  this.busy=true;let p={...this.customer,whatsapp_phone:this.customer.whatsapp_phone||this.customer.phone,organization_id:this.org.id,created_by:this.user.id};
+  let {error}=await this.sb.from('customers').insert(p);this.busy=false;if(error){this.note(error.message);return}
+  this.customer={full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''};this.modalCustomer=false;await this.refresh();this.note('Cliente guardado.');
+ },
+ openOp(t,c=null){this.tab=t;this.currentCustomer=c;this.op.customer_id=c?.id||'';this.op.exchange.rate=this.settings?.reference_exchange_rate||'';this.modalOp=true},
+ async saveOp(){
+  if(!this.op.customer_id){this.note('Selecciona un cliente.');return} this.busy=true;let result;
+  if(this.tab==='credito') result=await this.sb.rpc('register_credit_operation',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.credit.principal,p_initial_payment_usd:+(this.op.credit.initial||0),p_due_date:this.op.credit.due,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
+  if(this.tab==='prestamo') result=await this.sb.rpc('register_loan_operation',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.loan.principal,p_interest_total_pct:+this.op.loan.interest,p_installments_count:+this.op.loan.count,p_frequency:this.op.loan.frequency,p_disbursement_date:this.op.loan.start,p_first_due_date:this.op.loan.first,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
+  if(this.tab==='cambio') result=await this.sb.rpc('register_exchange_operation',{p_customer_id:this.op.customer_id,p_operation_type:this.op.exchange.type,p_source_currency:this.op.exchange.source,p_target_currency:this.op.exchange.target,p_amount_received:+this.op.exchange.amount,p_exchange_rate:+this.op.exchange.rate,p_fee_usd:+(this.op.exchange.fee||0),p_payment_method:this.op.method,p_payment_reference:this.op.reference||null,p_notes:this.op.notes||null});
+  this.busy=false;if(result.error){this.note('No se guardó: '+result.error.message);return} this.modalOp=false;this.clearOp();await this.refresh();this.note('Ficha guardada en la nube.');
+ },
+ clearOp(){this.op={customer_id:'',concept:'',notes:'',method:'cash_usd',reference:'',credit:{principal:'',initial:'',due:''},loan:{principal:'',interest:'',count:'',frequency:'monthly',start:new Date().toISOString().slice(0,10),first:''},exchange:{type:'currency_sale',source:'USD',target:'VES',amount:'',rate:this.settings?.reference_exchange_rate||'',fee:''}}},
+ accounts(c){
+  let a=this.credits.filter(x=>x.customer_id===c.id).map(x=>({id:x.id,kind:'credito',concept:x.concept,total:+x.original_balance_usd,quota:+x.original_balance_usd}));
+  a=a.concat(this.loans.filter(x=>x.customer_id===c.id).map(x=>({id:x.id,kind:'prestamo',concept:x.concept,total:+x.total_receivable_usd,quota:+x.total_receivable_usd/+x.installments_count})));
+  return a.map(x=>{let paid=this.payments.filter(p=>p.customer_id===c.id&&(x.kind==='credito'?p.credit_account_id===x.id:p.loan_id===x.id)&&p.status==='confirmed').reduce((s,p)=>s+(+p.amount_usd),0);return {...x,balance:Math.max(0,x.total-paid)}}).filter(x=>x.balance>0)
+ },
+ debt(c){return this.accounts(c).reduce((s,a)=>s+a.balance,0)},
+ openPay(c,a){this.currentCustomer=c;this.currentAccount=a;this.payment={amount:Math.min(a.quota,a.balance).toFixed(2),method:'pago_movil',reference:''};this.modalPay=true},
+ async savePay(){
+  let a=this.currentAccount,c=this.currentCustomer,amt=+this.payment.amount;this.busy=true;
+  let {error}=await this.sb.rpc('register_account_payment',{p_customer_id:c.id,p_credit_account_id:a.kind==='credito'?a.id:null,p_loan_id:a.kind==='prestamo'?a.id:null,p_installment_id:null,p_charge_type:amt>=a.balance?'full_settlement':'partial_payment',p_amount_usd:amt,p_payment_method:this.payment.method,p_payment_reference:this.payment.reference||null,p_notes:null});
+  this.busy=false;if(error){this.note(error.message);return}this.modalPay=false;await this.refresh();this.note('Pago registrado.');
+ },
+ openCharge(c,a){this.currentCustomer=c;this.currentAccount=a;this.chargeMode='installment';this.modalCharge=true},
+ chargeValue(){return !this.currentAccount?0:this.chargeMode==='full'?this.currentAccount.balance:Math.min(this.currentAccount.quota,this.currentAccount.balance)},
+ whatsapp(){
+  let c=this.currentCustomer,a=this.currentAccount,amount=this.chargeValue(),tipo=this.chargeMode==='full'?'liquidación total':'cuota pendiente';
+  let txt=`Hola, ${c.full_name} 👋\n\nTe saludamos de *${this.org.business_name}*.\n\n📌 Estado de tu cuenta: tienes una ${tipo} por la operación “${a.concept}”.\n💵 Monto a cancelar: *USD ${this.money(amount)}*\n📊 Saldo total pendiente: *USD ${this.money(a.balance)}*\n\nPor favor, comunícate con nosotros para coordinar tu pago.`;
+  window.open('https://wa.me/'+String(c.whatsapp_phone||c.phone).replace(/\D/g,'')+'?text='+encodeURIComponent(txt),'_blank');this.modalCharge=false
+ },
+ async saveSettings(){if(this.role!=='owner'){this.note('Solo el dueño modifica ajustes.');return}let {error}=await this.sb.from('organization_settings').update({reference_exchange_rate:+(this.settings.reference_exchange_rate||0)}).eq('organization_id',this.org.id);if(error){this.note(error.message);return}this.note('Tasa actualizada.')},
+ get liquidity(){return this.cash.filter(x=>x.status==='confirmed').reduce((s,x)=>s+(x.direction==='income'?+x.amount_usd:-x.amount_usd),0)},
+ get receivable(){return this.customers.reduce((s,c)=>s+this.debt(c),0)},
+ get fxGain(){return this.exchanges.reduce((s,x)=>s+(+x.fee_usd),0)},
+ graphs(){
+  if(this.view!=='dashboard'||!this.org||typeof Chart==='undefined')return;let c=document.getElementById('mainChart'),d=document.getElementById('mixChart');if(!c||!d)return;
+  let rows=[...this.cash].reverse().slice(-10),val=0,labels=['Inicio'],values=[0];rows.forEach(x=>{val+=x.direction==='income'?+x.amount_usd:-x.amount_usd;labels.push(x.movement_date.slice(5));values.push(val)});
+  let g=c.getContext('2d').createLinearGradient(0,0,0,260);g.addColorStop(0,'rgba(16,185,129,.35)');g.addColorStop(1,'rgba(16,185,129,0)');
+  this.charts.main?.destroy();this.charts.main=new Chart(c,{type:'line',data:{labels,datasets:[{data:values,borderColor:'#10b981',backgroundColor:g,fill:true,tension:.42,borderWidth:3,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#607283'}},y:{grid:{color:'rgba(100,130,135,.12)'},ticks:{color:'#607283',callback:v=>'$'+v}}}}});
+  this.charts.mix?.destroy();this.charts.mix=new Chart(d,{type:'doughnut',data:{datasets:[{data:[this.credits.length,this.loans.length,this.exchanges.length],backgroundColor:['#10b981','#0b5345','#38bdf8'],borderColor:'#101720',borderWidth:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{display:false}}}})
+ },
+ async install(){if(this.installPrompt){this.installPrompt.prompt();await this.installPrompt.userChoice;this.installPrompt=null}else this.help=true},
+ money(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})},
+ note(t){this.toast=t;clearTimeout(this._t);this._t=setTimeout(()=>this.toast='',3300)}
+}}
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script></head>
+<body x-data="cajaCloud()" x-init="init()" x-cloak>
+<div x-show="loading" class="min-h-screen grid place-items-center"><p class="flex items-center gap-3 text-slate-400"><span class="dot"></span>Cargando La Caja App...</p></div>
+<section x-show="!loading&&!user" class="min-h-screen grid place-items-center p-5">
+<form @submit.prevent="signin()" class="panel neon rounded-[28px] p-8 w-full max-w-md">
+<div class="flex items-center gap-4 mb-8"><div class="w-12 h-12 bg-pino border border-live/40 rounded-xl grid place-items-center text-live font-bold">◇</div><div><h1 class="text-xl font-semibold">La Caja App</h1><p class="text-sm text-slate-500">Control financiero seguro</p></div></div>
+<p class="text-sm text-slate-400 mb-6">Ingresa con las credenciales activadas para tu negocio.</p>
+<label class="label">Correo electrónico</label><input x-model="login.email" class="field mb-4" type="email" autocomplete="username" placeholder="correo@negocio.com">
+<label class="label">Contraseña</label><input x-model="login.password" class="field" type="password" autocomplete="current-password" placeholder="••••••••">
+<p class="text-rose-400 text-xs mt-3" x-show="error" x-text="error"></p>
+<button :disabled="busy" class="btn w-full py-3.5 rounded-xl mt-6 font-semibold" x-text="busy?'Ingresando...':'Ingresar'"></button>
+<button type="button" @click="install()" class="border border-white/10 w-full py-3 rounded-xl mt-4 text-sm text-slate-300">Instalar aplicación</button>
+</form></section>
+<section x-show="!loading&&user&&!org" class="min-h-screen grid place-items-center"><div class="panel rounded-3xl p-8 text-center"><h2 class="font-semibold">Cuenta sin empresa activa</h2><p class="text-slate-400 text-sm mt-3" x-text="error"></p><button @click="signout()" class="btn rounded-xl px-5 py-3 mt-5">Cerrar sesión</button></div></section>
+<div x-show="!loading&&user&&org" class="lg:h-screen lg:flex lg:overflow-hidden">
+<aside class="hidden lg:flex w-[214px] shrink-0 panel rounded-none border-y-0 border-l-0 p-5 flex-col">
+<div class="flex gap-3 items-center mb-9"><div class="w-9 h-9 bg-pino border border-live/35 rounded-xl grid place-items-center text-live">◇</div><div><p class="font-semibold">La Caja</p><p class="text-[10px] text-slate-500 max-w-[125px] truncate" x-text="org?.business_name"></p></div></div>
+<nav class="space-y-2 text-sm"><template x-for="i in [['dashboard','Resumen','▥'],['clientes','Clientes','◎'],['fichas','Fichas','▣'],['caja','Caja diaria','$'],['reportes','Reportes','◌'],['ajustes','Ajustes','⚙']]"><button @click="view=i[0];$nextTick(()=>graphs())" class="w-full flex gap-3 px-4 py-3 rounded-xl" :class="view===i[0]?'bg-white/[.06] border border-live/20 text-white':'text-slate-500'"><span :class="view===i[0]?'text-live':''" x-text="i[2]"></span><span x-text="i[1]"></span></button></template></nav>
+<div class="card rounded-2xl p-4 mt-auto text-xs"><p class="flex gap-2 items-center"><span class="dot"></span>Nube activa</p><p class="text-slate-500 mt-2">Supabase conectado</p></div>
+</aside>
+<main class="flex-1 min-w-0 lg:overflow-y-auto pb-24 lg:pb-0">
+<header class="h-20 px-5 sm:px-8 sticky top-0 z-20 bg-ink/90 backdrop-blur flex justify-between items-center"><div><p class="text-xs text-slate-500" x-text="org?.business_name"></p><h2 class="text-xl font-semibold" x-text="{dashboard:'Dashboard',clientes:'Clientes y cobranza',fichas:'Fichas operativas',caja:'Caja diaria',reportes:'Reportes',ajustes:'Ajustes'}[view]"></h2></div><div class="flex gap-3 items-center"><button @click="install()" class="badge px-3 py-2 rounded-full text-xs hidden sm:block">Instalar</button><button @click="signout()" class="text-sm text-slate-400">Salir</button></div></header>
+<section x-show="view==='dashboard'" class="px-5 sm:px-8 pb-8 space-y-5">
+<div class="flex justify-between items-center"><p class="text-sm text-slate-500">Operación en tiempo real</p><button @click="openOp('credito')" class="btn rounded-xl px-5 py-3 text-sm font-semibold">+ Operación</button></div>
+<div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+<article class="card neon rounded-2xl p-5"><p class="label">Caja líquida</p><p class="text-2xl font-semibold">$<span x-text="money(liquidity)"></span></p><p class="text-live text-xs mt-4 flex gap-2 items-center"><span class="dot"></span>Activo</p></article>
+<article class="card neon rounded-2xl p-5"><p class="label">Por cobrar</p><p class="text-2xl font-semibold">$<span x-text="money(receivable)"></span></p><p class="text-live text-xs mt-4" x-text="customers.length+' clientes'"></p></article>
+<article class="card neon rounded-2xl p-5"><p class="label">Ganancia cambio</p><p class="text-2xl font-semibold">$<span x-text="money(fxGain)"></span></p><p class="text-slate-500 text-xs mt-4" x-text="exchanges.length+' operaciones'"></p></article>
+<article class="card neon rounded-2xl p-5"><p class="label">Fichas</p><p class="text-2xl font-semibold" x-text="credits.length+loans.length+exchanges.length"></p><p class="text-slate-500 text-xs mt-4">Guardadas en nube</p></article></div>
+<article class="panel neon rounded-3xl p-5 sm:p-6"><h3 class="font-medium">Crecimiento de caja</h3><p class="text-xs text-slate-500 mb-4">Entradas y salidas reales registradas</p><div class="h-[265px]"><canvas id="mainChart"></canvas></div></article>
+<div class="grid lg:grid-cols-[1fr_285px] gap-4"><article class="panel rounded-3xl p-5"><h3 class="font-medium mb-4">Últimos movimientos</h3><p x-show="!cash.length" class="text-sm text-slate-500 py-8 text-center">Sin movimientos registrados.</p><template x-for="m in cash.slice(0,5)" :key="m.id"><div class="flex justify-between py-3 border-b border-white/[.06]"><div><p class="text-sm" x-text="m.concept"></p><p class="text-xs text-slate-500" x-text="m.movement_date"></p></div><p :class="m.direction==='income'?'text-live':'text-amber-400'" x-text="(m.direction==='income'?'+ $':'- $')+money(m.amount_usd)"></p></div></template></article><article class="panel rounded-3xl p-5"><p class="font-medium">Distribución</p><div class="h-40 mt-3"><canvas id="mixChart"></canvas></div><div class="grid grid-cols-3 text-xs text-center text-slate-500"><p>Crédito<br><b class="text-live" x-text="credits.length"></b></p><p>Préstamo<br><b class="text-emerald-700" x-text="loans.length"></b></p><p>Cambio<br><b class="text-sky-400" x-text="exchanges.length"></b></p></div></article></div>
+</section>
+<section x-show="view==='clientes'" class="px-5 sm:px-8 pb-8">
+<div class="flex justify-between items-center mb-5"><p class="text-sm text-slate-500">Personas, saldos y cobranza.</p><button @click="modalCustomer=true" class="btn px-4 py-3 rounded-xl text-sm">+ Cliente</button></div>
+<div class="panel rounded-3xl overflow-hidden"><p x-show="!customers.length" class="text-center py-16 text-slate-500 text-sm">Registra tu primer cliente.</p>
+<template x-for="c in customers" :key="c.id"><div class="p-4 sm:p-5 border-b border-white/[.06]"><div class="flex flex-col md:flex-row justify-between md:items-center gap-4"><div class="flex gap-4 items-center"><div class="w-12 h-12 rounded-xl grid place-items-center font-semibold" :style="'background:'+c.avatar_color" x-text="c.full_name.slice(0,2).toUpperCase()"></div><div><p class="font-medium" x-text="c.full_name"></p><p class="text-xs text-slate-500" x-text="'CI: '+c.document_id+' · '+c.phone"></p></div></div><div class="flex gap-2 items-center"><b class="mr-2">$<span x-text="money(debt(c))"></span></b><button @click="openOp('credito',c)" class="bg-white/[.05] px-3 py-2 rounded-lg text-xs">Operación</button></div></div>
+<div x-show="accounts(c).length" class="mt-4 md:ml-16 space-y-2"><template x-for="a in accounts(c)" :key="a.id"><div class="card rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm"><div><span class="capitalize" x-text="a.kind"></span><span class="text-slate-500" x-text="' · '+a.concept"></span><p class="text-xs text-slate-500 mt-1">Pendiente USD <span x-text="money(a.balance)"></span></p></div><div class="flex gap-2"><button @click="openCharge(c,a)" class="bg-live/10 text-live rounded-lg px-3 py-2 text-xs">Cobrar</button><button @click="openPay(c,a)" class="bg-sky-500/10 text-sky-400 rounded-lg px-3 py-2 text-xs">Pago</button></div></div></template></div></div></template></div>
+</section>
+<section x-show="view==='fichas'" class="px-5 sm:px-8 pb-8 space-y-4">
+<div class="flex justify-between"><p class="text-sm text-slate-500">Historial por departamento.</p><button @click="openOp('credito')" class="btn px-4 py-3 rounded-xl text-sm">+ Ficha</button></div>
+<article class="panel rounded-3xl p-5"><h3 class="text-live mb-3">Crédito</h3><template x-for="x in credits" :key="x.id"><p class="border-b border-white/[.06] py-3 flex justify-between text-sm"><span x-text="x.concept"></span><span x-text="'$'+money(x.original_balance_usd)"></span></p></template><p x-show="!credits.length" class="text-slate-500 text-sm">Sin registros.</p></article>
+<article class="panel rounded-3xl p-5"><h3 class="text-amber-400 mb-3">Préstamo</h3><template x-for="x in loans" :key="x.id"><p class="border-b border-white/[.06] py-3 flex justify-between text-sm"><span x-text="x.concept"></span><span x-text="'$'+money(x.total_receivable_usd)"></span></p></template><p x-show="!loans.length" class="text-slate-500 text-sm">Sin registros.</p></article>
+<article class="panel rounded-3xl p-5"><h3 class="text-sky-400 mb-3">Cambio</h3><template x-for="x in exchanges" :key="x.id"><p class="border-b border-white/[.06] py-3 flex justify-between text-sm"><span x-text="x.source_currency+' → '+x.target_currency"></span><span x-text="x.target_currency+' '+money(x.amount_delivered)"></span></p></template><p x-show="!exchanges.length" class="text-slate-500 text-sm">Sin registros.</p></article>
+</section>
+<section x-show="view==='caja'" class="px-5 sm:px-8 pb-8"><article class="panel rounded-3xl p-5"><h3 class="font-medium">Caja diaria</h3><p class="text-sm text-slate-500 mt-2 mb-5">Abonos, desembolsos, ganancias y pagos se registran automáticamente.</p><template x-for="m in cash" :key="m.id"><div class="py-3 flex justify-between border-b border-white/[.06] text-sm"><div><p x-text="m.concept"></p><p class="text-xs text-slate-500" x-text="m.payment_method+' · '+m.movement_date"></p></div><b :class="m.direction==='income'?'text-live':'text-amber-400'" x-text="(m.direction==='income'?'+ $':'- $')+money(m.amount_usd)"></b></div></template></article></section>
+<section x-show="view==='reportes'" class="px-5 sm:px-8 pb-8"><div class="grid sm:grid-cols-2 gap-4"><article class="panel rounded-3xl p-6"><p class="label">Cartera pendiente</p><p class="text-3xl font-semibold">$<span x-text="money(receivable)"></span></p></article><article class="panel rounded-3xl p-6"><p class="label">Caja neta</p><p class="text-3xl font-semibold">$<span x-text="money(liquidity)"></span></p></article></div><p class="mt-5 text-sm text-slate-500">La exportación de respaldos será el siguiente módulo antes de cargar información definitiva.</p></section>
+<section x-show="view==='ajustes'" class="px-5 sm:px-8 pb-8 max-w-3xl"><article class="panel rounded-3xl p-6"><h3 class="font-medium">Ajustes del negocio</h3><p class="text-sm text-slate-500 mt-2 mb-5">Controla la tasa referencial para cambios y mensajes de cobro. Solo el dueño puede editarla.</p><label class="block max-w-sm"><span class="label">Tasa USD → VES</span><input type="number" step=".000001" class="field" x-model="settings.reference_exchange_rate"></label><button @click="saveSettings()" class="btn mt-5 rounded-xl px-5 py-3 text-sm">Guardar tasa</button></article></section>
+</main>
+<nav class="lg:hidden fixed z-30 bottom-3 left-3 right-3 panel rounded-2xl p-2 safe flex justify-around"><template x-for="i in [['dashboard','Inicio','▥'],['clientes','Clientes','◎'],['fichas','Fichas','▣'],['caja','Caja','$'],['ajustes','Ajustes','⚙']]"><button @click="view=i[0];$nextTick(()=>graphs())" class="w-[65px] py-2 rounded-xl flex flex-col items-center text-xs" :class="view===i[0]?'bg-live/10 text-live':'text-slate-500'"><span class="text-lg" x-text="i[2]"></span><span x-text="i[1]"></span></button></template></nav></div>
+
+<!-- MODAL CLIENTE -->
+<div x-show="modalCustomer" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCustomer=false">
+<form @submit.prevent="addCustomer()" class="panel rounded-3xl w-full max-w-lg p-6">
+<div class="flex justify-between mb-5"><div><h3 class="font-semibold">Nuevo cliente</h3><p class="text-xs text-slate-500 mt-1">Datos obligatorios para cada operación.</p></div><button type="button" @click="modalCustomer=false">×</button></div>
+<div class="grid sm:grid-cols-2 gap-3"><input x-model="customer.full_name" class="field" placeholder="Nombre completo *"><input x-model="customer.document_id" class="field" placeholder="Cédula / documento *"><input x-model="customer.phone" class="field" placeholder="Teléfono *"><input x-model="customer.whatsapp_phone" class="field" placeholder="WhatsApp (si es distinto)"><select x-model="customer.gender" class="field"><option value="F">Femenino</option><option value="M">Masculino</option></select><label class="field flex items-center gap-3 text-sm text-slate-400">Color de tarjeta <input type="color" x-model="customer.avatar_color" class="ml-auto bg-transparent"></label></div>
+<textarea x-model="customer.notes" class="field mt-3" placeholder="Observaciones"></textarea><button :disabled="busy" class="btn w-full py-3 rounded-xl font-semibold mt-5">Guardar cliente</button></form></div>
+
+<!-- MODAL OPERACIÓN -->
+<div x-show="modalOp" class="fixed inset-0 overlay z-40 grid place-items-end sm:place-items-center p-3" @click.self="modalOp=false">
+<form @submit.prevent="saveOp()" class="panel rounded-3xl w-full max-w-2xl max-h-[95vh] overflow-y-auto p-6">
+<div class="flex justify-between"><div><h3 class="font-semibold text-lg">Nueva operación</h3><p class="text-xs text-slate-500">Guardado seguro y relacionado a un cliente</p></div><button type="button" @click="modalOp=false">×</button></div>
+<div class="grid grid-cols-3 gap-2 my-5"><button type="button" @click="tab='credito'" class="rounded-xl border py-3 text-sm" :class="tab==='credito'?'border-live text-live bg-live/10':'border-white/10 text-slate-400'">Crédito</button><button type="button" @click="tab='prestamo'" class="rounded-xl border py-3 text-sm" :class="tab==='prestamo'?'border-amber-400 text-amber-400 bg-amber-500/10':'border-white/10 text-slate-400'">Préstamo</button><button type="button" @click="tab='cambio'" class="rounded-xl border py-3 text-sm" :class="tab==='cambio'?'border-sky-400 text-sky-400 bg-sky-500/10':'border-white/10 text-slate-400'">Cambio</button></div>
+<label class="block mb-3"><span class="label">Cliente *</span><select x-model="op.customer_id" class="field"><option value="">Seleccionar cliente</option><template x-for="c in customers" :key="c.id"><option :value="c.id" x-text="c.full_name+' · '+c.document_id"></option></template></select></label>
+<input x-model="op.concept" class="field mb-4" placeholder="Concepto / descripción">
+<section x-show="tab==='credito'" class="grid sm:grid-cols-2 gap-3"><label><span class="label">Monto financiado USD *</span><input x-model="op.credit.principal" type="number" step=".01" class="field"></label><label><span class="label">Abono inicial USD</span><input x-model="op.credit.initial" type="number" step=".01" class="field"></label><label><span class="label">Vencimiento *</span><input x-model="op.credit.due" type="date" class="field"></label></section>
+<section x-show="tab==='prestamo'" class="grid sm:grid-cols-2 gap-3"><label><span class="label">Capital prestado USD *</span><input x-model="op.loan.principal" type="number" step=".01" class="field"></label><label><span class="label">Interés total % *</span><input x-model="op.loan.interest" type="number" step=".01" class="field"></label><label><span class="label">Cuotas *</span><input x-model="op.loan.count" type="number" min="1" class="field"></label><label><span class="label">Frecuencia</span><select x-model="op.loan.frequency" class="field"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="biweekly">Quincenal</option><option value="monthly">Mensual</option></select></label><label><span class="label">Desembolso *</span><input x-model="op.loan.start" type="date" class="field"></label><label><span class="label">Primera cuota *</span><input x-model="op.loan.first" type="date" class="field"></label></section>
+<section x-show="tab==='cambio'" class="grid sm:grid-cols-2 gap-3"><label><span class="label">Tipo</span><select x-model="op.exchange.type" class="field"><template x-for="t in types"><option :value="t[0]" x-text="t[1]"></option></template></select></label><label><span class="label">Moneda recibida</span><select x-model="op.exchange.source" class="field"><template x-for="c in currencies"><option :value="c" x-text="c"></option></template></select></label><label><span class="label">Moneda entregada</span><select x-model="op.exchange.target" class="field"><template x-for="c in currencies"><option :value="c" x-text="c"></option></template></select></label><label><span class="label">Monto recibido *</span><input x-model="op.exchange.amount" type="number" step=".0001" class="field"></label><label><span class="label">Tasa aplicada *</span><input x-model="op.exchange.rate" type="number" step=".000001" class="field"></label><label><span class="label">Ganancia / comisión USD</span><input x-model="op.exchange.fee" type="number" step=".01" class="field"></label></section>
+<div class="grid sm:grid-cols-2 gap-3 mt-4"><label><span class="label">Método de pago</span><select x-model="op.method" class="field"><template x-for="p in methods"><option :value="p[0]" x-text="p[1]"></option></template></select></label><label><span class="label">Referencia</span><input x-model="op.reference" class="field"></label></div>
+<textarea x-model="op.notes" class="field mt-3" placeholder="Notas internas"></textarea>
+<button :disabled="busy" class="btn rounded-xl w-full py-3.5 mt-5 font-semibold" x-text="busy?'Guardando...':'Guardar ficha en la nube'"></button></form></div>
+
+<!-- MODAL PAGO -->
+<div x-show="modalPay" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalPay=false"><form @submit.prevent="savePay()" class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Registrar pago</h3><button type="button" @click="modalPay=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name+' · Pendiente USD '+money(currentAccount?.balance)"></p><label><span class="label">Monto recibido USD *</span><input x-model="payment.amount" type="number" step=".01" class="field"></label><label class="block mt-3"><span class="label">Método</span><select x-model="payment.method" class="field"><template x-for="p in methods"><option :value="p[0]" x-text="p[1]"></option></template></select></label><input x-model="payment.reference" class="field mt-3" placeholder="Referencia"><button :disabled="busy" class="btn w-full rounded-xl py-3 mt-5">Confirmar pago</button></form></div>
+
+<!-- MODAL COBRO WHATSAPP -->
+<div x-show="modalCharge" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCharge=false"><div class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Cobrar por WhatsApp</h3><button @click="modalCharge=false">×</button></div><p class="text-sm text-slate-400 mb-5" x-text="currentCustomer?.full_name"></p><div class="grid grid-cols-2 gap-3"><button @click="chargeMode='installment'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='installment'?'border-live bg-live/10 text-live':'border-white/10'">Cuota actual<br><b>$<span x-text="money(Math.min(currentAccount?.quota||0,currentAccount?.balance||0))"></span></b></button><button @click="chargeMode='full'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='full'?'border-live bg-live/10 text-live':'border-white/10'">Pago total<br><b>$<span x-text="money(currentAccount?.balance)"></span></b></button></div><button @click="whatsapp()" class="w-full mt-5 bg-live text-ink font-semibold rounded-xl py-3">Abrir WhatsApp</button></div></div>
+
+<!-- MODAL INSTALACIÓN -->
+<div x-show="help" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="help=false"><div class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-4"><h3 class="font-semibold">Instalar aplicación</h3><button @click="help=false">×</button></div><p class="text-sm text-slate-300 mb-3"><b>iPhone:</b> abre el enlace en Safari → Compartir → Agregar a pantalla de inicio.</p><p class="text-sm text-slate-300"><b>Android o PC:</b> abre en Chrome o Edge → menú → Instalar aplicación.</p></div></div>
+<div x-show="toast" x-transition class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-white text-ink px-5 py-3 rounded-xl text-sm font-medium shadow-xl" x-text="toast"></div>
+</body></html>
