@@ -197,7 +197,7 @@ function cajaCloud(){return {
  ]},
  get coach(){
   let operated=this.totalOperatedAll, pending=this.receivable, net=this.liquidity, open=this.cashOpen;
-  if(!this.cash.length)return {title:'Todo negocio grande empieza con control.',message:'Abre tu primera jornada, registra cada movimiento y convierte el orden en tu ventaja.'};
+  if(!this.cash.length)return {title:'Todo negocio grande empieza con control.',message:'Registra tu primera operación y convierte el orden en tu ventaja.'};
   if(!open && !this.todaySession)return {title:'El día comienza cuando abres tu caja.',message:'Inicia tu jornada con claridad. Lo que se mide se puede mejorar.'};
   if(net<0)return {title:'El capital debe volver con disciplina.',message:'Tu caja está en negativo por desembolsos. Revisa cobros pendientes y recupera liquidez antes de expandirte.'};
   if(pending>Math.max(operated*.55,300))return {title:'Vender es bueno; cobrar sostiene el negocio.',message:'Tu cartera pendiente está alta. Hoy tu prioridad debe ser convertir saldos en efectivo.'};
