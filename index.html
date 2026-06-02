@@ -72,6 +72,15 @@ select.field,input[type=date].field{color-scheme:dark}select.field option{backgr
 .profit-box{border:1px solid rgba(16,185,129,.26);background:rgba(16,185,129,.08);color:#34d399}
 .installment-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:10px;color:#34d399;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22)}
 .fast-label{color:#60a5fa;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.22);border-radius:999px;padding:4px 8px;font-size:10px;font-weight:600}
+.accumulated-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:600;color:#fbbf24;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.27)}
+.overdue-btn{border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.08);color:#fbbf24}
+.accumulated-box{border:1px solid rgba(245,158,11,.23);background:rgba(245,158,11,.07)}
+.charge-highlight{border-color:rgba(245,158,11,.42)!important;background:rgba(245,158,11,.10)!important;color:#fbbf24!important}
+.connection-offline{border:1px solid rgba(245,158,11,.25);background:rgba(245,158,11,.08);color:#fbbf24}
+.connection-online{border:1px solid rgba(16,185,129,.22);background:rgba(16,185,129,.06)}
+.exchange-summary{border:1px solid rgba(56,189,248,.17);background:rgba(56,189,248,.045)}
+
+
 
 
 @media print{body{background:#fff;color:#111}.no-print{display:none!important}}
@@ -81,56 +90,117 @@ const URL_SUPA='https://kgvbypdvanbrpkiatjgv.supabase.co';
 const KEY_SUPA='sb_publishable_4bROoG3dop0v2MKMnq8ZEw_pvECwN2v';
 function cajaCloud(){return {
  sb:null,user:null,org:null,role:null,profile:null,settings:null,loading:true,busy:false,view:'dashboard',error:'',toast:'',chartStatus:'',installPrompt:null,help:false,modalProfile:false,
- login:{email:'',password:''}, modalCustomer:false,modalEditCustomer:false,modalOp:false,modalPay:false,modalCharge:false,modalOpenCash:false,modalCloseCash:false,modalRank:false,modalVoid:false,modalCustomerAction:false,hideAmounts:false, tab:'credito', activeDepartment:null, currentCustomer:null,currentAccount:null,
- customers:[],credits:[],loans:[],installments:[],exchanges:[],payments:[],cash:[],cashSessions:[],
+ login:{email:'',password:''}, modalCustomer:false,modalEditCustomer:false,modalOp:false,modalPay:false,modalCharge:false,modalOpenCash:false,modalCloseCash:false,modalRank:false,modalVoid:false,modalCustomerAction:false,modalAccumulated:false,hideAmounts:false, tab:'credito', activeDepartment:null, currentCustomer:null,currentAccount:null,
+ customers:[],credits:[],loans:[],installments:[],exchanges:[],quickExchanges:[],payments:[],cash:[],cashSessions:[],
  customer:{full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''},
  op:{customer_id:'',concept:'',notes:'',method:'cash_usd',reference:'',credit:{principal:'',initial:'',count:1,frequency:'monthly',first:''},loan:{principal:'',interest:'',count:'',frequency:'monthly',start:new Date().toISOString().slice(0,10),first:''},exchange:{amount:'',cash_pct:'',charge_pct:''}},
- payment:{amount:'',method:'pago_movil',reference:''}, chargeMode:'installment', identity:{business_name:'',business_phone:'',full_name:'',logo_data:'',avatar_data:''}, customerEdit:{}, opening:{balance:'0',notes:''}, closing:{actual:'',notes:''}, cashPeriod:'day', cashDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), trendPeriod:'week', customerSearch:'', reportPeriod:'day', reportDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), identityRemoveLogo:false, identityRemoveAvatar:false, showArchivedCustomers:false, showVoidedOperations:false, showVoidedCash:false, voidTarget:null, voidReason:'', customerAction:null, customerActionReason:'',
+ payment:{amount:'',method:'pago_movil',reference:''}, chargeMode:'installment', identity:{business_name:'',business_phone:'',full_name:'',logo_data:'',avatar_data:''}, customerEdit:{}, opening:{balance:'0',notes:''}, closing:{actual:'',notes:''}, cashPeriod:'day', cashDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), trendPeriod:'week', customerSearch:'', reportPeriod:'day', reportDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), identityRemoveLogo:false, identityRemoveAvatar:false, showArchivedCustomers:false, showVoidedOperations:false, showVoidedCash:false, voidTarget:null, voidReason:'', customerAction:null, customerActionReason:'', accumulationMode:'add', accumulationTarget:null, accumulation:{count:0,reason:''}, online:navigator.onLine,offlineMode:false,lastSync:'',resumeBusy:false, exchangePeriod:'day',exchangeDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()),
  currencies:['USD','VES','USDT','USDC','EUR','COP','PEN','CLP','ARS','BRL','MXN','DOP','PAB','CRC','GTQ','HNL','NIO','BOB','PYG','UYU','CAD'],
  types:[['currency_sale','Venta de divisas'],['currency_purchase','Compra de divisas'],['remittance_send','Envío de remesa'],['remittance_receive','Recepción de remesa'],['cash_for_transfer','Efectivo por transferencia'],['arbitrage','Arbitraje'],['stablecoin_exchange','Stablecoin / cripto'],['border_exchange','Cambio fronterizo']],
  methods:[['cash_usd','Efectivo USD'],['cash_ves','Efectivo Bs'],['pago_movil','Pago móvil'],['bank_transfer','Transferencia'],['zelle','Zelle'],['binance','Binance'],['zinli','Zinli'],['paypal','PayPal'],['other','Otro']],
+ withTimeout(promise,ms=10000){
+  return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),ms))]);
+ },
+ cacheKey(){return 'la-caja-snapshot-'+(this.user?.id||'anonymous')},
+ saveSnapshot(){
+  if(!this.user||!this.org)return;
+  try{localStorage.setItem(this.cacheKey(),JSON.stringify({org:this.org,role:this.role,profile:this.profile,settings:this.settings,customers:this.customers,credits:this.credits,loans:this.loans,installments:this.installments,exchanges:this.exchanges,quickExchanges:this.quickExchanges,payments:this.payments,cash:this.cash,cashSessions:this.cashSessions,at:new Date().toISOString()}));}catch(e){}
+ },
+ restoreSnapshot(){
+  try{
+   let raw=localStorage.getItem(this.cacheKey()); if(!raw)return false; let d=JSON.parse(raw);
+   this.org=d.org;this.role=d.role;this.profile=d.profile;this.settings=d.settings;
+   this.customers=d.customers||[];this.credits=d.credits||[];this.loans=d.loans||[];this.installments=d.installments||[];this.exchanges=d.exchanges||[];this.quickExchanges=d.quickExchanges||[];this.payments=d.payments||[];this.cash=d.cash||[];this.cashSessions=d.cashSessions||[];
+   this.identity={business_name:this.org?.business_name||'',business_phone:this.org?.phone||'',full_name:this.profile?.full_name||'',logo_data:this.org?.logo_url||'',avatar_data:this.profile?.avatar_url||''};
+   this.lastSync=d.at||'';this.offlineMode=true;return true;
+  }catch(e){return false}
+ },
+ requireOnline(){
+  if(!navigator.onLine){this.note('Sin conexión: puedes consultar la última información sincronizada. El registro de dinero requiere conexión para evitar duplicados.');return false}
+  return true;
+ },
  async init(){
   this.sb=supabase.createClient(URL_SUPA,KEY_SUPA,{auth:{persistSession:true,autoRefreshToken:true}});
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();this.installPrompt=e});
-  let {data}=await this.sb.auth.getSession();this.user=data.session?.user||null;
-  if(this.user) await this.workspace(); this.loading=false;
-  this.sb.auth.onAuthStateChange(async(_,s)=>{this.user=s?.user||null;if(this.user) await this.workspace();else {this.org=null;this.resetData()}});
+  window.addEventListener('online',async()=>{this.online=true;this.offlineMode=false;this.note('Conexión recuperada. Actualizando datos...');await this.resumeApp()});
+  window.addEventListener('offline',()=>{this.online=false;this.offlineMode=true;this.loading=false;this.note('Sin conexión. Mostrando última información disponible.')});
+  window.addEventListener('pageshow',()=>this.resumeApp());
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.resumeApp()});
+  try{
+   let {data}=await this.withTimeout(this.sb.auth.getSession(),7000);this.user=data.session?.user||null;
+   if(this.user) await this.workspace();
+  }catch(e){
+   this.restoreSnapshot();
+  }finally{this.loading=false}
+  this.sb.auth.onAuthStateChange(async(_,s)=>{
+   this.user=s?.user||null;
+   if(this.user){
+    if(navigator.onLine) await this.workspace();
+    else {this.restoreSnapshot();this.loading=false}
+   } else {this.org=null;this.resetData();this.loading=false}
+  });
  },
- async signin(){this.busy=true;this.error='';let {data,error}=await this.sb.auth.signInWithPassword({email:this.login.email.trim(),password:this.login.password});this.busy=false;if(error){this.error='Correo o contraseña incorrectos.';return}this.user=data.user;await this.workspace()},
- async signout(){await this.sb.auth.signOut();this.org=null;this.user=null;this.view='dashboard'},
- resetData(){this.customers=[];this.credits=[];this.loans=[];this.installments=[];this.exchanges=[];this.payments=[];this.cash=[];this.cashSessions=[]},
+ async resumeApp(){
+  if(!this.user||!navigator.onLine||this.resumeBusy)return;
+  this.resumeBusy=true;
+  try{
+   if(this.org) await this.withTimeout(this.refresh(),10000);
+   else await this.withTimeout(this.workspace(),10000);
+  }catch(e){
+   this.loading=false;this.note('No se pudo actualizar todavía. Conservamos la información visible.');
+  }finally{this.resumeBusy=false;this.loading=false}
+ },
+ async signin(){
+  if(!this.requireOnline())return;
+  this.busy=true;this.error='';
+  let {data,error}=await this.sb.auth.signInWithPassword({email:this.login.email.trim(),password:this.login.password});
+  this.busy=false;if(error){this.error='Correo o contraseña incorrectos.';return}
+  this.user=data.user;await this.workspace()
+ },
+ async signout(){if(navigator.onLine)await this.sb.auth.signOut();this.org=null;this.user=null;this.view='dashboard';this.resetData()},
+ resetData(){this.customers=[];this.credits=[];this.loans=[];this.installments=[];this.exchanges=[];this.quickExchanges=[];this.payments=[];this.cash=[];this.cashSessions=[]},
  async workspace(){
-  this.loading=true;let {data:m,error}=await this.sb.from('organization_members').select('organization_id,role').eq('user_id',this.user.id).eq('status','active').limit(1);
-  if(error||!m?.length){this.error='Tu cuenta no tiene un negocio activo asignado.';this.loading=false;return}
-  this.role=m[0].role;let id=m[0].organization_id;
-  let [o,s,p]=await Promise.all([
-   this.sb.from('organizations').select('*').eq('id',id).single(),
-   this.sb.from('organization_settings').select('*').eq('organization_id',id).single(),
-   this.sb.from('profiles').select('full_name,avatar_url,phone').eq('id',this.user.id).single()
-  ]);
-  if(o.error){this.error='No se pudo abrir tu empresa.';this.loading=false;return}
-  this.org=o.data; this.profile=p.data||{full_name:this.user.email,avatar_url:null,phone:''};
-  this.settings=s.data||{organization_id:id,reference_exchange_rate:0};
-  this.identity={business_name:this.org.business_name||'',business_phone:this.org.phone||'',full_name:this.profile.full_name||'',logo_data:this.org.logo_url||'',avatar_data:this.profile.avatar_url||''};
-  this.loading=false;
-  await this.refresh();
+  this.loading=true;
+  if(!navigator.onLine){this.restoreSnapshot();this.loading=false;return}
+  try{
+   let {data:m,error}=await this.withTimeout(this.sb.from('organization_members').select('organization_id,role').eq('user_id',this.user.id).eq('status','active').limit(1));
+   if(error||!m?.length){this.error='Tu cuenta no tiene un negocio activo asignado.';return}
+   this.role=m[0].role;let id=m[0].organization_id;
+   let [o,s,p]=await this.withTimeout(Promise.all([
+    this.sb.from('organizations').select('*').eq('id',id).single(),
+    this.sb.from('organization_settings').select('*').eq('organization_id',id).single(),
+    this.sb.from('profiles').select('full_name,avatar_url,phone').eq('id',this.user.id).single()
+   ]));
+   if(o.error){this.error='No se pudo abrir tu empresa.';return}
+   this.org=o.data;this.profile=p.data||{full_name:this.user.email,avatar_url:null,phone:''};
+   this.settings=s.data||{organization_id:id,reference_exchange_rate:0};
+   this.identity={business_name:this.org.business_name||'',business_phone:this.org.phone||'',full_name:this.profile.full_name||'',logo_data:this.org.logo_url||'',avatar_data:this.profile.avatar_url||''};
+   await this.refresh();
+  }catch(e){
+   if(!this.restoreSnapshot())this.error='Conexión inestable. Intenta nuevamente cuando recuperes señal.';
+  }finally{this.loading=false}
  },
  async refresh(){
-  if(!this.org)return;let id=this.org.id;
-  let [cu,cr,lo,ins,ex,pa,ca,se]=await Promise.all([
+  if(!this.org)return;
+  if(!navigator.onLine){this.restoreSnapshot();return}
+  let id=this.org.id;
+  let [cu,cr,lo,ins,ex,qx,pa,ca,se]=await this.withTimeout(Promise.all([
    this.sb.from('customers').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
    this.sb.from('credit_accounts').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
    this.sb.from('loans').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
    this.sb.from('installments').select('*').eq('organization_id',id).order('due_date',{ascending:true}),
    this.sb.from('exchange_operations').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
+   this.sb.rpc('list_quick_exchange_operations'),
    this.sb.from('payments_received').select('*').eq('organization_id',id).order('received_at',{ascending:false}),
    this.sb.from('cash_movements').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
    this.sb.from('daily_cash_closings').select('*').eq('organization_id',id).order('closing_date',{ascending:false})
-  ]);
-  let bad=[cu,cr,lo,ins,ex,pa,ca,se].find(x=>x.error);if(bad){this.note('Error: '+bad.error.message);return}
-  [this.customers,this.credits,this.loans,this.installments,this.exchanges,this.payments,this.cash,this.cashSessions]=[cu.data,cr.data,lo.data,ins.data,ex.data,pa.data,ca.data,se.data];
+  ]));
+  let bad=[cu,cr,lo,ins,ex,qx,pa,ca,se].find(x=>x.error);if(bad){this.note('Error: '+bad.error.message);return}
+  [this.customers,this.credits,this.loans,this.installments,this.exchanges,this.quickExchanges,this.payments,this.cash,this.cashSessions]=[cu.data,cr.data,lo.data,ins.data,ex.data,qx.data||[],pa.data,ca.data,se.data];
+  this.lastSync=new Date().toISOString();this.online=true;this.offlineMode=false;this.saveSnapshot();
  },
  async addCustomer(){
+  if(!this.requireOnline())return;
   if(!this.customer.full_name.trim()||!this.customer.document_id.trim()||!this.customer.phone.trim()){this.note('Completa nombre, cédula y teléfono.');return}
   this.busy=true;let p={...this.customer,whatsapp_phone:this.customer.whatsapp_phone||this.customer.phone,organization_id:this.org.id,created_by:this.user.id};
   let {error}=await this.sb.from('customers').insert(p);this.busy=false;if(error){this.note(error.message);return}
@@ -139,36 +209,77 @@ function cajaCloud(){return {
  beginOp(t,c=null){this.openOp(t,c)},
  openOp(t,c=null){this.tab=t;this.currentCustomer=c;this.op.customer_id=c?.id||'';this.modalOp=true},
  async saveOp(){
+  if(!this.requireOnline())return;
   if(this.tab!=='cambio'&&!this.op.customer_id){this.note('Selecciona un cliente.');return}
   this.busy=true;let result;
   if(this.tab==='credito') result=await this.sb.rpc('register_credit_operation_v2',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.credit.principal,p_initial_payment_usd:+(this.op.credit.initial||0),p_installments_count:+(this.op.credit.count||1),p_frequency:this.op.credit.frequency,p_first_due_date:this.op.credit.first,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
   if(this.tab==='prestamo') result=await this.sb.rpc('register_loan_operation',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.loan.principal,p_interest_total_pct:+this.op.loan.interest,p_installments_count:+this.op.loan.count,p_frequency:this.op.loan.frequency,p_disbursement_date:this.op.loan.start,p_first_due_date:this.op.loan.first,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
-  if(this.tab==='cambio') result=await this.sb.rpc('register_quick_exchange_operation',{p_amount_received_usd:+this.op.exchange.amount,p_cash_cost_pct:+this.op.exchange.cash_pct,p_client_charge_pct:+this.op.exchange.charge_pct});
+  if(this.tab==='cambio') result=await this.sb.rpc('register_quick_exchange_operation_v3',{p_amount_received_usd:+this.op.exchange.amount,p_cash_cost_pct:+this.op.exchange.cash_pct,p_client_charge_pct:+this.op.exchange.charge_pct});
   this.busy=false;if(result.error){this.note('No se guardó: '+result.error.message);return}
   this.modalOp=false;this.clearOp();await this.refresh();this.note(this.tab==='cambio'?'Cambio rápido registrado y ganancia calculada.':'Operación guardada en la nube.');
  },
  clearOp(){this.op={customer_id:'',concept:'',notes:'',method:'cash_usd',reference:'',credit:{principal:'',initial:'',count:1,frequency:'monthly',first:''},loan:{principal:'',interest:'',count:'',frequency:'monthly',start:new Date().toISOString().slice(0,10),first:''},exchange:{amount:'',cash_pct:'',charge_pct:''}}},
  accounts(c){
-  let a=this.activeCredits.filter(x=>x.customer_id===c.id).map(x=>({id:x.id,kind:'credito',concept:x.concept,total:+x.original_balance_usd,quota:Math.round((+x.original_balance_usd/Math.max(1,+x.installments_count||1))*100)/100,installments:+x.installments_count||1,frequency:x.frequency||'monthly'}));
-  a=a.concat(this.activeLoans.filter(x=>x.customer_id===c.id).map(x=>({id:x.id,kind:'prestamo',concept:x.concept,total:+x.total_receivable_usd,quota:Math.round((+x.total_receivable_usd/Math.max(1,+x.installments_count||1))*100)/100,installments:+x.installments_count||1,frequency:x.frequency||'monthly'})));
+  let a=this.activeCredits.filter(x=>x.customer_id===c.id).map(x=>({id:x.id,kind:'credito',concept:x.concept,total:+x.original_balance_usd,quota:Math.round((+x.original_balance_usd/Math.max(1,+x.installments_count||1))*100)/100,installments:+x.installments_count||1,frequency:x.frequency||'monthly',accumulated:+x.accumulated_installments_count||0,accumulatedReason:x.accumulated_reason||''}));
+  a=a.concat(this.activeLoans.filter(x=>x.customer_id===c.id).map(x=>({id:x.id,kind:'prestamo',concept:x.concept,total:+x.total_receivable_usd,quota:Math.round((+x.total_receivable_usd/Math.max(1,+x.installments_count||1))*100)/100,installments:+x.installments_count||1,frequency:x.frequency||'monthly',accumulated:+x.accumulated_installments_count||0,accumulatedReason:x.accumulated_reason||''})));
   return a.map(x=>{let paid=this.payments.filter(p=>p.customer_id===c.id&&(x.kind==='credito'?p.credit_account_id===x.id:p.loan_id===x.id)&&p.status==='confirmed').reduce((s,p)=>s+(+p.amount_usd),0);return {...x,balance:Math.max(0,x.total-paid)}}).filter(x=>x.balance>0)
  },
  debt(c){return this.accounts(c).reduce((s,a)=>s+a.balance,0)},
+ currentQuota(a){return !a?0:Math.min(a.quota,a.balance)},
+ accumulatedOnly(a){return !a?0:Math.min(a.balance,a.quota*Math.max(0,a.accumulated||0))},
+ accumulatedCharge(a){return !a?0:Math.min(a.balance,a.quota*(1+Math.max(0,a.accumulated||0)))},
+ openAccumulated(a,mode='add'){
+  this.accumulationMode=mode;this.accumulationTarget=a;
+  this.accumulation={count:mode==='edit'?(a.accumulated||0):((a.accumulated||0)+1),reason:''};
+  this.modalAccumulated=true;
+ },
+ async saveAccumulated(){
+  if(!this.requireOnline())return;
+  let a=this.accumulationTarget,reason=(this.accumulation.reason||'').trim();
+  if(!a){return}
+  if(reason.length<5){this.note('Indica el motivo con al menos 5 caracteres.');return}
+  if(+this.accumulation.count<0){this.note('La cantidad no puede ser negativa.');return}
+  this.busy=true;let result;
+  if(this.accumulationMode==='add'){
+   result=await this.sb.rpc('mark_installment_unpaid',{p_record_type:a.kind,p_record_id:a.id,p_reason:reason});
+  } else {
+   result=await this.sb.rpc('set_accumulated_installments',{p_record_type:a.kind,p_record_id:a.id,p_count:+this.accumulation.count,p_reason:reason});
+  }
+  this.busy=false;
+  if(result.error){this.note('No se pudo actualizar: '+result.error.message);return}
+  this.modalAccumulated=false;await this.refresh();
+  this.note(this.accumulationMode==='add'?'Cuota marcada como acumulada.':'Cuotas acumuladas actualizadas.');
+ },
  creditNet(){return Math.max(0,(+this.op.credit.principal||0)-(+this.op.credit.initial||0))},
  creditQuota(){return this.creditNet()/Math.max(1,+this.op.credit.count||1)},
  quickProfit(){return (+this.op.exchange.amount||0)*(((+this.op.exchange.charge_pct||0)-(+this.op.exchange.cash_pct||0))/100)},
- openPay(c,a){this.currentCustomer=c;this.currentAccount=a;this.payment={amount:Math.min(a.quota,a.balance).toFixed(2),method:'pago_movil',reference:''};this.modalPay=true},
+ openPay(c,a){this.currentCustomer=c;this.currentAccount=a;let suggested=a.accumulated>0?this.accumulatedCharge(a):this.currentQuota(a);this.payment={amount:suggested.toFixed(2),method:'pago_movil',reference:''};this.modalPay=true},
  async savePay(){
+  if(!this.requireOnline())return;
   let a=this.currentAccount,c=this.currentCustomer,amt=+this.payment.amount;this.busy=true;
-  let {error}=await this.sb.rpc('register_account_payment',{p_customer_id:c.id,p_credit_account_id:a.kind==='credito'?a.id:null,p_loan_id:a.kind==='prestamo'?a.id:null,p_installment_id:null,p_charge_type:amt>=a.balance?'full_settlement':'partial_payment',p_amount_usd:amt,p_payment_method:this.payment.method,p_payment_reference:this.payment.reference||null,p_notes:null});
-  this.busy=false;if(error){this.note(error.message);return}this.modalPay=false;await this.refresh();this.note('Pago registrado.');
+  let {error}=await this.sb.rpc('register_account_payment_v13',{p_customer_id:c.id,p_credit_account_id:a.kind==='credito'?a.id:null,p_loan_id:a.kind==='prestamo'?a.id:null,p_installment_id:null,p_charge_type:amt>=a.balance?'full_settlement':'partial_payment',p_amount_usd:amt,p_payment_method:this.payment.method,p_payment_reference:this.payment.reference||null,p_notes:a.accumulated>0?'Pago aplicado a cuotas acumuladas':null});
+  this.busy=false;if(error){this.note(error.message);return}this.modalPay=false;await this.refresh();this.note('Pago registrado y acumulación actualizada.');
  },
- openCharge(c,a){this.currentCustomer=c;this.currentAccount=a;this.chargeMode='installment';this.modalCharge=true},
- chargeValue(){return !this.currentAccount?0:this.chargeMode==='full'?this.currentAccount.balance:Math.min(this.currentAccount.quota,this.currentAccount.balance)},
+ openCharge(c,a){this.currentCustomer=c;this.currentAccount=a;this.chargeMode=a.accumulated>0?'with_accumulated':'installment';this.modalCharge=true},
+ chargeValue(){
+  if(!this.currentAccount)return 0;
+  if(this.chargeMode==='full')return this.currentAccount.balance;
+  if(this.chargeMode==='accumulated_only')return this.accumulatedOnly(this.currentAccount);
+  if(this.chargeMode==='with_accumulated')return this.accumulatedCharge(this.currentAccount);
+  return this.currentQuota(this.currentAccount);
+ },
  whatsappUrl(){
   let c=this.currentCustomer,a=this.currentAccount;if(!c||!a)return '#';
-  let amount=this.chargeValue(),tipo=this.chargeMode==='full'?'liquidación total de su cuenta':'cuota pendiente';
-  let txt=`Hola, ${c.full_name} 👋\n\nTe saludamos de *${this.org.business_name}*.\n\n📌 Estado de tu cuenta: tienes pendiente el pago de ${tipo} por la operación “${a.concept}”.\n💵 Monto a cancelar: *USD ${this.money(amount)}*\n📊 Saldo total pendiente: *USD ${this.money(a.balance)}*\n\nPor favor, comunícate con nosotros para coordinar tu pago.`;
+  let amount=this.chargeValue(),tipo='',extra='';
+  if(this.chargeMode==='full') tipo='la liquidación total de su cuenta';
+  else if(this.chargeMode==='with_accumulated'){
+   tipo=`${(a.accumulated||0)+1} cuotas pendientes`;
+   extra=`\n⚠️ Cuotas acumuladas: *${a.accumulated}* (más la cuota correspondiente)`;
+  } else if(this.chargeMode==='accumulated_only'){
+   tipo=`${a.accumulated} cuota(s) acumulada(s)`;
+   extra=`\n⚠️ Su cuenta registra cuotas vencidas acumuladas.`;
+  } else tipo='la cuota correspondiente';
+  let txt=`Hola, ${c.full_name} 👋\n\nTe saludamos de *${this.org.business_name}*.\n\n📌 Estado de tu cuenta: tienes pendiente el pago de ${tipo} por la operación “${a.concept}”.${extra}\n💵 Monto a cancelar: *USD ${this.money(amount)}*\n📊 Saldo total pendiente: *USD ${this.money(a.balance)}*\n\nPor favor, comunícate con nosotros para coordinar tu pago.`;
   let phone=String(c.whatsapp_phone||c.phone||'').replace(/\D/g,'');
   return 'https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(txt);
  },
@@ -224,6 +335,10 @@ function cajaCloud(){return {
  get activeCredits(){return this.credits.filter(x=>x.status!=='cancelled')},
  get activeLoans(){return this.loans.filter(x=>x.status!=='cancelled')},
  get activeExchanges(){return this.exchanges.filter(x=>x.status!=='voided')},
+ get activeQuickExchanges(){return this.quickExchanges.filter(x=>x.status!=='voided')},
+ normalizedQuickExchanges(){
+  return this.quickExchanges.map(x=>({...x,quick_mode:true,is_quick_table:true,fee_usd:+x.profit_usd,amount_received:+x.amount_received_usd,source_currency:'USD',target_currency:'Ganancia',operation_type:'quick_usd'}));
+ },
  get visibleCustomers(){
   return this.customers.filter(c=>this.showArchivedCustomers?c.status==='inactive':c.status!=='inactive');
  },
@@ -234,7 +349,7 @@ function cajaCloud(){return {
  },
  get liquidity(){return this.cash.filter(x=>x.status==='confirmed').reduce((s,x)=>s+(x.direction==='income'?+x.amount_usd:-x.amount_usd),0)},
  get receivable(){return this.customers.reduce((s,c)=>s+this.debt(c),0)},
- get fxGain(){return this.activeExchanges.reduce((s,x)=>s+(+x.fee_usd),0)},
+ get fxGain(){return this.activeExchanges.reduce((s,x)=>s+(+x.fee_usd||0),0)+this.activeQuickExchanges.reduce((s,x)=>s+(+x.profit_usd||0),0)},
  get todayVE(){return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date())},
  movementDay(m){return m.created_at?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date(m.created_at)):m.movement_date},
  movementTime(m){return m.created_at?new Intl.DateTimeFormat('es-VE',{timeZone:'America/Caracas',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(m.created_at)):''},
@@ -267,41 +382,59 @@ function cajaCloud(){return {
  get trendMax(){return Math.max(1,...this.trendData.map(x=>x.operated))},
  barHeight(n){return Math.max(n?4:2,Math.round((n/this.trendMax)*150))},
  get deptDistribution(){
-  let rows=[{key:'credito',label:'Crédito',color:'#10b981',count:this.activeCredits.length},{key:'prestamo',label:'Préstamo',color:'#f59e0b',count:this.activeLoans.length},{key:'cambio',label:'Cambio',color:'#38bdf8',count:this.activeExchanges.length}],total=rows.reduce((s,x)=>s+x.count,0)||1,cursor=0;
+  let rows=[{key:'credito',label:'Crédito',color:'#10b981',count:this.activeCredits.length},{key:'prestamo',label:'Préstamo',color:'#f59e0b',count:this.activeLoans.length},{key:'cambio',label:'Cambio',color:'#38bdf8',count:(this.activeExchanges.length+this.activeQuickExchanges.length)}],total=rows.reduce((s,x)=>s+x.count,0)||1,cursor=0;
   rows.forEach(x=>{x.pct=(x.count/total)*100;x.from=cursor;cursor+=x.pct;x.to=cursor});return rows
  },
  get donutBackground(){let a=this.deptDistribution;return `conic-gradient(${a.map(x=>`${x.color} ${x.from}% ${x.to}%`).join(',')})`},
  departmentRows(key){
-  let rows=key==='credito'?this.credits:(key==='prestamo'?this.loans:this.exchanges);
+  let rows=key==='credito'?this.credits:(key==='prestamo'?this.loans:[...this.normalizedQuickExchanges(),...this.exchanges]);
+  rows=rows.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   return this.showVoidedOperations?rows:rows.filter(x=>key==='cambio'?x.status!=='voided':x.status!=='cancelled');
  },
  isVoidedRecord(key,x){return key==='cambio'?x.status==='voided':x.status==='cancelled'},
+ exchangeInPeriod(day){
+  let base=new Date(this.exchangeDate+'T00:00:00'), d=new Date(day+'T00:00:00');
+  if(this.exchangePeriod==='day')return day===this.exchangeDate;
+  if(this.exchangePeriod==='week'){let monday=new Date(base);let wd=(monday.getDay()+6)%7;monday.setDate(monday.getDate()-wd);let end=new Date(monday);end.setDate(end.getDate()+7);return d>=monday&&d<end}
+  return d.getFullYear()===base.getFullYear()&&d.getMonth()===base.getMonth();
+ },
+ get exchangePeriodRows(){return [...this.activeExchanges,...this.activeQuickExchanges].filter(x=>this.exchangeInPeriod(this.movementDay(x)))},
+ get exchangePeriodProfit(){return this.exchangePeriodRows.reduce((s,x)=>s+(+(x.profit_usd ?? x.fee_usd)||0),0)},
+ get exchangeQuickVolume(){return this.activeQuickExchanges.filter(x=>this.exchangeInPeriod(this.movementDay(x))).reduce((s,x)=>s+(+x.amount_received_usd||0),0)},
  departmentTitle(key){return {credito:'Créditos',prestamo:'Préstamos',cambio:'Cambios'}[key]||'Departamentos'},
  startEdit(c){this.customerEdit={...c};this.modalEditCustomer=true},
  async saveCustomerEdit(){
+  if(!this.requireOnline())return;
   let c=this.customerEdit;this.busy=true;let {error}=await this.sb.rpc('update_customer_details',{p_customer_id:c.id,p_full_name:c.full_name,p_document_id:c.document_id,p_phone:c.phone,p_whatsapp_phone:c.whatsapp_phone||c.phone,p_avatar_color:c.avatar_color,p_notes:c.notes||null});this.busy=false;
   if(error){this.note('No se pudo modificar: '+error.message);return}this.modalEditCustomer=false;await this.refresh();this.note('Datos del cliente actualizados.');
  },
  startVoid(type,record){
-  this.voidTarget={type,id:record.id,label:type==='credito'?(record.concept||'Crédito'):type==='prestamo'?(record.concept||'Préstamo'):type==='cambio'?((record.source_currency||'')+' → '+(record.target_currency||'')):'Pago recibido'};
+  this.voidTarget={type,id:record.id,label:type==='credito'?(record.concept||'Crédito'):type==='prestamo'?(record.concept||'Préstamo'):type==='cambio_rapido'?'Cambio rápido USD':type==='cambio'?((record.source_currency||'')+' → '+(record.target_currency||'')):'Pago recibido'};
   this.voidReason='';this.modalVoid=true;
  },
  startVoidFromCash(m){
   if(m.payment_received_id)return this.startVoid('pago',{id:m.payment_received_id,concept:'Pago recibido'});
   if(m.credit_account_id)return this.startVoid('credito',{id:m.credit_account_id,concept:'Crédito'});
   if(m.loan_id)return this.startVoid('prestamo',{id:m.loan_id,concept:'Préstamo'});
+  if(m.quick_exchange_operation_id)return this.startVoid('cambio_rapido',{id:m.quick_exchange_operation_id});
   if(m.exchange_operation_id)return this.startVoid('cambio',{id:m.exchange_operation_id,source_currency:'Cambio',target_currency:''});
   this.note('Este movimiento no tiene una operación asociada para anular.');
  },
- canVoidCash(m){return m.status==='confirmed'&&(m.payment_received_id||m.credit_account_id||m.loan_id||m.exchange_operation_id)},
+ canVoidCash(m){return m.status==='confirmed'&&(m.payment_received_id||m.credit_account_id||m.loan_id||m.exchange_operation_id||m.quick_exchange_operation_id)},
  async confirmVoid(){
+  if(!this.requireOnline())return;
   if(!this.voidTarget||this.voidReason.trim().length<5){this.note('Escribe un motivo de al menos 5 caracteres.');return}
-  this.busy=true;let {error}=await this.sb.rpc('void_financial_record',{p_record_type:this.voidTarget.type,p_record_id:this.voidTarget.id,p_reason:this.voidReason.trim()});this.busy=false;
+  this.busy=true;
+  let action=this.voidTarget.type==='cambio_rapido'
+    ? await this.sb.rpc('void_quick_exchange_operation',{p_record_id:this.voidTarget.id,p_reason:this.voidReason.trim()})
+    : await this.sb.rpc('void_financial_record',{p_record_type:this.voidTarget.type,p_record_id:this.voidTarget.id,p_reason:this.voidReason.trim()});
+  let error=action.error;this.busy=false;
   if(error){this.note('No se pudo anular: '+error.message);return}
   this.modalVoid=false;this.voidTarget=null;this.voidReason='';await this.refresh();this.note('Operación anulada. Ya no afecta saldos ni reportes activos.');
  },
  startCustomerAction(c,action){this.customerAction={customer:c,action};this.customerActionReason='';this.modalCustomerAction=true},
  async confirmCustomerAction(){
+  if(!this.requireOnline())return;
   if(!this.customerAction)return;
   let c=this.customerAction.customer,a=this.customerAction.action,result;this.busy=true;
   if(a==='delete') result=await this.sb.rpc('delete_empty_customer',{p_customer_id:c.id});
@@ -311,7 +444,7 @@ function cajaCloud(){return {
   this.note(a==='delete'?'Cliente vacío eliminado.':(a==='archive'?'Cliente archivado. Puedes verlo activando “Archivados”.':'Cliente reactivado.'));
  },
  exportBackup(){
-  let pack={app:'La Caja App',version:'V1.1',exported_at:new Date().toISOString(),organization:this.org,settings:this.settings,customers:this.customers,credits:this.credits,loans:this.loans,installments:this.installments,exchanges:this.exchanges,payments:this.payments,cash_movements:this.cash,daily_cash_closings:this.cashSessions};
+  let pack={app:'La Caja App',version:'V1.3',exported_at:new Date().toISOString(),organization:this.org,settings:this.settings,customers:this.customers,credits:this.credits,loans:this.loans,installments:this.installments,exchanges:this.exchanges,payments:this.payments,cash_movements:this.cash,daily_cash_closings:this.cashSessions};
   let blob=new Blob([JSON.stringify(pack,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`respaldo-la-caja-${this.org.business_name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-${this.todayVE}.json`;link.click();URL.revokeObjectURL(link.href);this.note('Respaldo descargado.');
  },
  reportInPeriod(date){
@@ -363,7 +496,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <aside class="hidden lg:flex w-[214px] shrink-0 panel rounded-none border-y-0 border-l-0 p-5 flex-col">
 <div class="flex gap-3 items-center mb-9"><template x-if="org?.logo_url"><img :src="org.logo_url" class="w-9 h-9 logo"></template><div x-show="!org?.logo_url" class="w-9 h-9 bg-pino border border-live/35 rounded-xl grid place-items-center text-live">◇</div><div><p class="font-semibold">La Caja</p><p class="text-[10px] text-slate-500 max-w-[125px] truncate" x-text="org?.business_name"></p></div></div>
 <nav class="space-y-2 text-sm"><template x-for="i in [['dashboard','Resumen','▥'],['clientes','Clientes','◎'],['departamentos','Departamentos','◈'],['caja','Caja diaria','$'],['reportes','Reportes','◌'],['ajustes','Ajustes','⚙']]"><button @click="view=i[0];" class="w-full flex gap-3 px-4 py-3 rounded-xl" :class="view===i[0]?'bg-white/[.06] border border-live/20 text-white':'text-slate-500'"><span :class="view===i[0]?'text-live':''" x-text="i[2]"></span><span x-text="i[1]"></span></button></template></nav>
-<div class="card rounded-2xl p-4 mt-auto text-xs"><p class="flex gap-2 items-center"><span class="dot"></span>Nube activa</p><p class="text-slate-500 mt-2">Supabase conectado</p></div>
+<div class="rounded-2xl p-4 mt-auto text-xs" :class="online&&!offlineMode?'connection-online':'connection-offline'"><p class="flex gap-2 items-center"><span class="dot"></span><span x-text="online&&!offlineMode?'Nube activa':'Modo consulta sin conexión'"></span></p><p class="text-slate-500 mt-2" x-text="online&&!offlineMode?'Supabase conectado':'Últimos datos guardados en este dispositivo'"></p></div>
 </aside>
 <main class="flex-1 min-w-0 lg:overflow-y-auto pb-24 lg:pb-0">
 <header class="h-20 px-5 sm:px-8 sticky top-0 z-20 bg-ink/90 backdrop-blur flex justify-between items-center"><div><p class="text-xs text-slate-500" x-text="org?.business_name"></p><h2 class="text-xl font-semibold" x-text="{dashboard:'Dashboard',clientes:'Clientes y cobranza',fichas:'Fichas operativas',caja:'Caja diaria',reportes:'Reportes',ajustes:'Ajustes'}[view]"></h2></div><div class="flex gap-3 items-center"><button @click="install()" class="badge px-3 py-2 rounded-full text-xs hidden sm:block">Instalar</button><button @click="modalRank=true" class="rank-badge hidden sm:inline-flex" :class="rank.class"><span x-text="rank.icon"></span><span x-text="rank.name"></span></button><button @click="modalProfile=true" class="flex items-center gap-2"><template x-if="profile?.avatar_url"><img :src="profile.avatar_url" class="avatar"></template><div x-show="!profile?.avatar_url" class="w-10 h-10 rounded-xl bg-pino text-live grid place-items-center text-sm font-semibold" x-text="(profile?.full_name||'U').slice(0,2).toUpperCase()"></div></button><button @click="signout()" class="text-sm text-slate-400">Salir</button></div></header>
@@ -382,16 +515,19 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5"><div><p class="text-sm text-slate-500">Personas, saldos y cobranza.</p><p class="text-xs text-slate-500 mt-1">Los clientes con historial se archivan; solo los clientes vacíos pueden eliminarse.</p></div><div class="flex flex-col sm:flex-row gap-3"><button @click="showArchivedCustomers=!showArchivedCustomers" class="toggle-chip px-4 py-3 rounded-xl text-sm" :class="showArchivedCustomers?'active':''" x-text="showArchivedCustomers?'Ver activos':'Ver archivados'"></button><label class="search-wrap"><input x-model="customerSearch" class="field search-field sm:w-[285px]" placeholder="Buscar nombre, cédula o teléfono"></label><button x-show="!showArchivedCustomers" @click="modalCustomer=true" class="btn px-4 py-3 rounded-xl text-sm">+ Cliente</button></div></div>
 <div class="panel rounded-3xl overflow-hidden"><p x-show="!filteredCustomers.length" class="text-center py-16 text-slate-500 text-sm" x-text="customerSearch?'No se encontraron clientes.':(showArchivedCustomers?'No hay clientes archivados.':'Registra tu primer cliente.')"></p>
 <template x-for="c in filteredCustomers" :key="c.id"><div class="p-4 sm:p-5 border-b border-white/[.06]" :class="c.status==='inactive'?'voided-row':''"><div class="flex flex-col md:flex-row justify-between md:items-center gap-4"><div class="flex gap-4 items-center"><div class="w-12 h-12 rounded-xl grid place-items-center font-semibold" :style="'background:'+c.avatar_color" x-text="c.full_name.slice(0,2).toUpperCase()"></div><div><div class="flex items-center gap-2"><p class="font-medium" x-text="c.full_name"></p><span x-show="c.status==='inactive'" class="status-archived">ARCHIVADO</span></div><p class="text-xs text-slate-500" x-text="'CI: '+c.document_id+' · '+c.phone"></p></div></div><div class="flex gap-2 items-center flex-wrap"><b class="mr-2">$<span x-text="money(debt(c))"></span></b><button x-show="c.status!=='inactive'" @click="startEdit(c)" class="bg-white/[.05] px-3 py-2 rounded-lg text-xs">Editar</button><button x-show="c.status!=='inactive'" @click="beginOp('credito',c)" class="bg-white/[.05] px-3 py-2 rounded-lg text-xs">Operación</button><button x-show="c.status!=='inactive'" @click="startCustomerAction(c,'archive')" class="archive-btn px-3 py-2 rounded-lg text-xs">Archivar</button><button x-show="c.status!=='inactive'" @click="startCustomerAction(c,'delete')" class="danger-btn px-3 py-2 rounded-lg text-xs">Eliminar si vacío</button><button x-show="c.status==='inactive'" @click="startCustomerAction(c,'restore')" class="bg-live/10 text-live px-3 py-2 rounded-lg text-xs">Reactivar</button></div></div>
-<div x-show="accounts(c).length" class="mt-4 md:ml-16 space-y-2"><template x-for="a in accounts(c)" :key="a.id"><div class="card rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm"><div><span class="capitalize" x-text="a.kind"></span><span class="text-slate-500" x-text="' · '+a.concept"></span><p class="text-xs text-slate-500 mt-1">Pendiente USD <span x-text="money(a.balance)"></span> · Cuota USD <span x-text="money(Math.min(a.quota,a.balance))"></span> · <span x-text="a.installments"></span> cuotas</p></div><div class="flex gap-2"><button x-show="c.status!=='inactive'" @click="openCharge(c,a)" class="bg-live/10 text-live rounded-lg px-3 py-2 text-xs">Cobrar</button><button x-show="c.status!=='inactive'" @click="openPay(c,a)" class="bg-sky-500/10 text-sky-400 rounded-lg px-3 py-2 text-xs">Pago</button><button x-show="c.status!=='inactive'" @click="startVoid(a.kind,a)" class="danger-btn rounded-lg px-3 py-2 text-xs">Anular</button></div></div></template></div></div></template></div>
+<div x-show="accounts(c).length" class="mt-4 md:ml-16 space-y-2"><template x-for="a in accounts(c)" :key="a.id"><div class="card rounded-xl px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-sm"><div><div class="flex items-center gap-2 flex-wrap"><span class="capitalize" x-text="a.kind"></span><span class="text-slate-500" x-text="' · '+a.concept"></span><span x-show="a.accumulated>0" class="accumulated-chip" x-text="a.accumulated+' acumulada(s)'"></span></div><p class="text-xs text-slate-500 mt-1">Pendiente USD <span x-text="money(a.balance)"></span> · Cuota USD <span x-text="money(currentQuota(a))"></span> · <span x-text="a.installments"></span> cuotas</p><p x-show="a.accumulated>0" class="text-xs text-amber-400 mt-1">Cobro sugerido con acumuladas: USD <span x-text="money(accumulatedCharge(a))"></span></p></div><div class="flex gap-2 flex-wrap"><button x-show="c.status!=='inactive'" @click="openCharge(c,a)" class="bg-live/10 text-live rounded-lg px-3 py-2 text-xs">Cobrar</button><button x-show="c.status!=='inactive'" @click="openPay(c,a)" class="bg-sky-500/10 text-sky-400 rounded-lg px-3 py-2 text-xs">Pago</button><button x-show="c.status!=='inactive'" @click="openAccumulated(a,'add')" class="overdue-btn rounded-lg px-3 py-2 text-xs">Cuota no pagada</button><button x-show="c.status!=='inactive'&&a.accumulated>0" @click="openAccumulated(a,'edit')" class="archive-btn rounded-lg px-3 py-2 text-xs">Ajustar acumuladas</button><button x-show="c.status!=='inactive'" @click="startVoid(a.kind,a)" class="danger-btn rounded-lg px-3 py-2 text-xs">Anular</button></div></div></template></div></div></template></div>
 </section>
 <section x-show="view==='departamentos'" class="px-5 sm:px-8 pb-8 space-y-5">
 <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4"><div><p class="text-sm text-slate-500">Control organizado por área operativa.</p><h3 class="text-lg font-medium mt-1" x-text="activeDepartment?departmentTitle(activeDepartment):'Departamentos'"></h3></div><div class="flex gap-2"><button x-show="activeDepartment" @click="showVoidedOperations=!showVoidedOperations" class="toggle-chip px-4 py-3 rounded-xl text-sm" :class="showVoidedOperations?'active':''" x-text="showVoidedOperations?'Ocultar anuladas':'Mostrar anuladas'"></button><button x-show="!activeDepartment" @click="beginOp('credito')" class="btn px-4 py-3 rounded-xl text-sm">+ Operación</button><button x-show="activeDepartment" @click="activeDepartment=null;showVoidedOperations=false" class="border border-white/10 px-4 py-3 rounded-xl text-sm text-slate-300">← Volver</button></div></div>
 <div x-show="!activeDepartment" class="grid md:grid-cols-3 gap-4">
 <button @click="activeDepartment='credito'" class="panel rounded-3xl p-6 text-left hover:border-live/30"><div class="icon-tile dept-credit">$</div><h3 class="font-semibold mt-5">Créditos</h3><p class="text-sm text-slate-500 mt-2">Cuentas por cobrar y saldos.</p><p class="text-live text-2xl font-semibold mt-5" x-text="activeCredits.length"></p></button>
 <button @click="activeDepartment='prestamo'" class="panel rounded-3xl p-6 text-left hover:border-amber-400/30"><div class="icon-tile dept-loan">↗</div><h3 class="font-semibold mt-5">Préstamos</h3><p class="text-sm text-slate-500 mt-2">Capital, interés y cuotas.</p><p class="text-amber-400 text-2xl font-semibold mt-5" x-text="activeLoans.length"></p></button>
-<button @click="activeDepartment='cambio'" class="panel rounded-3xl p-6 text-left hover:border-sky-400/30"><div class="icon-tile dept-exchange">↔</div><h3 class="font-semibold mt-5">Cambios</h3><p class="text-sm text-slate-500 mt-2">Divisas, tasas y comisiones.</p><p class="text-sky-400 text-2xl font-semibold mt-5" x-text="activeExchanges.length"></p></button>
+<button @click="activeDepartment='cambio'" class="panel rounded-3xl p-6 text-left hover:border-sky-400/30"><div class="icon-tile dept-exchange">↔</div><h3 class="font-semibold mt-5">Cambios</h3><p class="text-sm text-slate-500 mt-2">Divisas, tasas y comisiones.</p><p class="text-sky-400 text-2xl font-semibold mt-5" x-text="activeExchanges.length+activeQuickExchanges.length"></p></button>
 </div>
-<div x-show="activeDepartment" class="panel rounded-3xl p-5"><p x-show="!departmentRows(activeDepartment).length" class="text-slate-500 text-sm py-10 text-center">No hay operaciones registradas en este departamento.</p><template x-for="x in departmentRows(activeDepartment)" :key="x.id"><div class="py-4 border-b border-white/[.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3" :class="isVoidedRecord(activeDepartment,x)?'voided-row':''"><div class="flex items-center gap-3"><div class="icon-tile" :class="activeDepartment==='credito'?'dept-credit':(activeDepartment==='prestamo'?'dept-loan':'dept-exchange')" x-text="activeDepartment==='credito'?'$':(activeDepartment==='prestamo'?'↗':'↔')"></div><div><div class="flex gap-2 items-center"><p class="font-medium" x-text="activeDepartment==='cambio'?(x.quick_mode?'Cambio rápido USD':(x.source_currency+' → '+x.target_currency)):x.concept"></p><span x-show="activeDepartment==='cambio'&&x.quick_mode" class="fast-label">RÁPIDO</span><span x-show="isVoidedRecord(activeDepartment,x)" class="status-voided">ANULADA</span></div><p class="text-xs text-slate-500" x-text="activeDepartment==='cambio'?(x.quick_mode?('USD rápido · Pagado '+money(x.cash_cost_pct)+'% · Cobrado '+money(x.client_charge_pct)+'%'):('Tasa '+x.exchange_rate+' · Comisión USD '+money(x.fee_usd))):(activeDepartment==='credito'&&x.installments_count?((x.installments_count)+' cuotas · '+(x.frequency||'mensual')+' · Primera '+(x.first_due_date||'')):('Registrado · '+(x.due_date||x.first_due_date||'')))"></p><p x-show="isVoidedRecord(activeDepartment,x)&&x.void_reason" class="text-xs text-rose-400 mt-1" x-text="'Motivo: '+x.void_reason"></p></div></div><div class="flex gap-3 items-center"><b :class="activeDepartment==='credito'?'text-live':(activeDepartment==='prestamo'?'text-amber-400':'text-sky-400')" x-text="activeDepartment==='cambio'?(x.target_currency+' '+money(x.amount_delivered)):('USD '+money(activeDepartment==='credito'?x.original_balance_usd:x.total_receivable_usd))"></b><button x-show="!isVoidedRecord(activeDepartment,x)" @click="startVoid(activeDepartment,x)" class="danger-btn rounded-lg px-3 py-2 text-xs">Anular</button></div></div></template></div></section>
+<div x-show="activeDepartment==='cambio'" class="exchange-summary rounded-3xl p-5 sm:p-6">
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-5"><div><h3 class="font-medium">Ganancias de cambios</h3><p class="text-sm text-slate-500 mt-1">Resumen de ganancias registradas en el departamento de cambios.</p></div><div class="flex flex-wrap gap-2 items-end"><label><span class="label">Fecha base</span><input x-model="exchangeDate" type="date" class="field !py-2.5"></label><button @click="exchangePeriod='day'" class="period-btn rounded-lg px-3 py-2.5" :class="exchangePeriod==='day'?'active':''">Día</button><button @click="exchangePeriod='week'" class="period-btn rounded-lg px-3 py-2.5" :class="exchangePeriod==='week'?'active':''">Semana</button><button @click="exchangePeriod='month'" class="period-btn rounded-lg px-3 py-2.5" :class="exchangePeriod==='month'?'active':''">Mes</button></div></div>
+<div class="grid sm:grid-cols-3 gap-3"><div class="card rounded-xl p-4"><p class="label">Operaciones de cambio</p><b class="text-2xl" x-text="exchangePeriodRows.length"></b></div><div class="card rounded-xl p-4"><p class="label">Monto rápido operado USD</p><b class="text-2xl">$<span x-text="money(exchangeQuickVolume)"></span></b></div><div class="profit-box rounded-xl p-4"><p class="label">Ganancia total cambios</p><b class="text-2xl">USD <span x-text="money(exchangePeriodProfit)"></span></b></div></div></div>
+<div x-show="activeDepartment" class="panel rounded-3xl p-5"><p x-show="!departmentRows(activeDepartment).length" class="text-slate-500 text-sm py-10 text-center">No hay operaciones registradas en este departamento.</p><template x-for="x in departmentRows(activeDepartment)" :key="x.id"><div class="py-4 border-b border-white/[.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3" :class="isVoidedRecord(activeDepartment,x)?'voided-row':''"><div class="flex items-center gap-3"><div class="icon-tile" :class="activeDepartment==='credito'?'dept-credit':(activeDepartment==='prestamo'?'dept-loan':'dept-exchange')" x-text="activeDepartment==='credito'?'$':(activeDepartment==='prestamo'?'↗':'↔')"></div><div><div class="flex gap-2 items-center"><p class="font-medium" x-text="activeDepartment==='cambio'?(x.quick_mode?'Cambio rápido USD':(x.source_currency+' → '+x.target_currency)):x.concept"></p><span x-show="activeDepartment==='cambio'&&x.quick_mode" class="fast-label">RÁPIDO</span><span x-show="isVoidedRecord(activeDepartment,x)" class="status-voided">ANULADA</span></div><p class="text-xs text-slate-500" x-text="activeDepartment==='cambio'?(x.quick_mode?('USD rápido · Pagado '+money(x.cash_cost_pct)+'% · Cobrado '+money(x.client_charge_pct)+'%'):('Tasa '+x.exchange_rate+' · Comisión USD '+money(x.fee_usd))):(activeDepartment==='credito'&&x.installments_count?((x.installments_count)+' cuotas · '+(x.frequency||'mensual')+' · Primera '+(x.first_due_date||'')):('Registrado · '+(x.due_date||x.first_due_date||'')))"></p><p x-show="isVoidedRecord(activeDepartment,x)&&x.void_reason" class="text-xs text-rose-400 mt-1" x-text="'Motivo: '+x.void_reason"></p></div></div><div class="flex gap-3 items-center"><b :class="activeDepartment==='credito'?'text-live':(activeDepartment==='prestamo'?'text-amber-400':'text-sky-400')" x-text="activeDepartment==='cambio'?(x.target_currency+' '+money(x.amount_delivered)):('USD '+money(activeDepartment==='credito'?x.original_balance_usd:x.total_receivable_usd))"></b><button x-show="!isVoidedRecord(activeDepartment,x)" @click="startVoid(activeDepartment==='cambio'&&x.is_quick_table?'cambio_rapido':activeDepartment,x)" class="danger-btn rounded-lg px-3 py-2 text-xs">Anular</button></div></div></template></div></section>
 <section x-show="view==='caja'" class="px-5 sm:px-8 pb-8 space-y-5">
 <article class="auto-register rounded-3xl p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 <div class="flex gap-4 items-start"><div class="w-12 h-12 rounded-2xl bg-live/10 border border-live/20 text-live grid place-items-center text-xl">✓</div><div><h3 class="font-semibold">Registro automático activo</h3><p class="text-sm text-slate-400 mt-1">Cada crédito, préstamo, cambio o pago se registra automáticamente con fecha y hora de Venezuela. Si existe un error, puedes anularlo dejando el motivo registrado.</p></div></div>
@@ -430,6 +566,9 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <!-- MODAL ARCHIVAR / ELIMINAR CLIENTE -->
 <div x-show="modalCustomerAction" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCustomerAction=false"><form @submit.prevent="confirmCustomerAction()" class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><div><h3 class="font-semibold text-lg" x-text="customerAction?.action==='delete'?'Eliminar cliente vacío':(customerAction?.action==='restore'?'Reactivar cliente':'Archivar cliente')"></h3><p class="text-xs text-slate-500 mt-1" x-text="customerAction?.customer?.full_name"></p></div><button type="button" @click="modalCustomerAction=false">×</button></div><div x-show="customerAction?.action==='delete'" class="warning-box rounded-xl p-4 text-sm mb-4">Solo se eliminará si el cliente no tiene operaciones ni movimientos registrados. Si tiene historial, la app bloqueará la eliminación.</div><div x-show="customerAction?.action==='archive'" class="warning-box rounded-xl p-4 text-sm mb-4">El cliente dejará de aparecer en la lista activa, pero su historial y saldos se conservarán. Puedes reactivarlo después.</div><textarea x-show="customerAction?.action==='archive'" x-model="customerActionReason" class="field min-h-[80px]" placeholder="Motivo del archivo (opcional)"></textarea><div class="flex gap-3 mt-5"><button type="button" @click="modalCustomerAction=false" class="border border-white/10 rounded-xl px-5 py-3 flex-1">Cancelar</button><button :disabled="busy" class="rounded-xl px-5 py-3 flex-1 font-semibold" :class="customerAction?.action==='restore'?'btn':'danger-btn'" x-text="customerAction?.action==='delete'?'Eliminar':(customerAction?.action==='restore'?'Reactivar':'Archivar')"></button></div></form></div>
 
+<!-- MODAL CUOTAS ACUMULADAS -->
+<div x-show="modalAccumulated" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalAccumulated=false"><form @submit.prevent="saveAccumulated()" class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><div><h3 class="font-semibold text-lg" x-text="accumulationMode==='add'?'Marcar cuota no pagada':'Ajustar cuotas acumuladas'"></h3><p class="text-xs text-slate-500 mt-1" x-text="accumulationTarget?.concept"></p></div><button type="button" @click="modalAccumulated=false">×</button></div><div class="accumulated-box rounded-xl p-4 text-sm text-amber-300 mb-4"><p x-show="accumulationMode==='add'">Al confirmar, se sumará una cuota vencida al próximo cobro de este cliente.</p><p x-show="accumulationMode==='edit'">Ajusta la cantidad real de cuotas que el cliente mantiene acumuladas.</p></div><label x-show="accumulationMode==='edit'" class="block mb-4"><span class="label">Cantidad de cuotas acumuladas</span><input x-model="accumulation.count" type="number" min="0" step="1" class="field"></label><p x-show="accumulationMode==='add'" class="text-sm mb-4">Quedará con: <b class="text-amber-300" x-text="accumulation.count+' cuota(s) acumulada(s)'"></b></p><label><span class="label">Motivo obligatorio</span><textarea x-model="accumulation.reason" minlength="5" required class="field min-h-[88px]" placeholder="Ej: Cliente no pagó la cuota correspondiente a la fecha acordada"></textarea></label><div class="flex gap-3 mt-5"><button type="button" @click="modalAccumulated=false" class="border border-white/10 rounded-xl px-5 py-3 flex-1">Cancelar</button><button :disabled="busy" class="overdue-btn rounded-xl px-5 py-3 flex-1 font-semibold" x-text="accumulationMode==='add'?'Marcar acumulada':'Guardar ajuste'"></button></div></form></div>
+
 <!-- MODAL OPERACIÓN -->
 <div x-show="modalOp" class="fixed inset-0 overlay z-40 grid place-items-end sm:place-items-center p-3" @click.self="modalOp=false">
 <form @submit.prevent="saveOp()" class="panel rounded-3xl w-full max-w-2xl max-h-[95vh] overflow-y-auto p-6">
@@ -443,10 +582,10 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <button :disabled="busy" class="btn rounded-xl w-full py-3.5 mt-5 font-semibold" x-text="busy?'Guardando...':(tab==='cambio'?'Registrar cambio rápido':'Guardar operación')"></button></form></div>
 
 <!-- MODAL PAGO -->
-<div x-show="modalPay" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalPay=false"><form @submit.prevent="savePay()" class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Registrar pago</h3><button type="button" @click="modalPay=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name+' · Pendiente USD '+money(currentAccount?.balance)"></p><label><span class="label">Monto recibido USD *</span><input x-model="payment.amount" type="number" step=".01" class="field"></label><label class="block mt-3"><span class="label">Método</span><select x-model="payment.method" class="field"><template x-for="p in methods"><option :value="p[0]" x-text="p[1]"></option></template></select></label><input x-model="payment.reference" class="field mt-3" placeholder="Referencia"><button :disabled="busy" class="btn w-full rounded-xl py-3 mt-5">Confirmar pago</button></form></div>
+<div x-show="modalPay" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalPay=false"><form @submit.prevent="savePay()" class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Registrar pago</h3><button type="button" @click="modalPay=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name+' · Pendiente USD '+money(currentAccount?.balance)"></p><div x-show="currentAccount?.accumulated>0" class="accumulated-box rounded-xl p-3 text-sm text-amber-300 mb-4"><b x-text="currentAccount?.accumulated+' cuota(s) acumulada(s).'"></b> <span>El monto sugerido incluye la cuota actual más las acumuladas.</span></div><label><span class="label">Monto recibido USD *</span><input x-model="payment.amount" type="number" step=".01" class="field"></label><label class="block mt-3"><span class="label">Método</span><select x-model="payment.method" class="field"><template x-for="p in methods"><option :value="p[0]" x-text="p[1]"></option></template></select></label><input x-model="payment.reference" class="field mt-3" placeholder="Referencia"><button :disabled="busy" class="btn w-full rounded-xl py-3 mt-5">Confirmar pago</button></form></div>
 
 <!-- MODAL COBRO WHATSAPP -->
-<div x-show="modalCharge" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCharge=false"><div class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Cobrar por WhatsApp</h3><button @click="modalCharge=false">×</button></div><p class="text-sm text-slate-400 mb-5" x-text="currentCustomer?.full_name"></p><div class="grid grid-cols-2 gap-3"><button @click="chargeMode='installment'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='installment'?'border-live bg-live/10 text-live':'border-white/10'">Cuota actual<br><b>$<span x-text="money(Math.min(currentAccount?.quota||0,currentAccount?.balance||0))"></span></b></button><button @click="chargeMode='full'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='full'?'border-live bg-live/10 text-live':'border-white/10'">Pago total<br><b>$<span x-text="money(currentAccount?.balance)"></span></b></button></div><a :href="whatsappUrl()" @click="modalCharge=false" class="block text-center w-full mt-5 bg-live text-ink font-semibold rounded-xl py-3">Abrir WhatsApp</a></div></div>
+<div x-show="modalCharge" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCharge=false"><div class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Cobrar por WhatsApp</h3><button @click="modalCharge=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name"></p><div x-show="currentAccount?.accumulated>0" class="accumulated-box rounded-xl p-3 mb-4 text-sm text-amber-300"><b x-text="'⚠ '+currentAccount?.accumulated+' cuota(s) acumulada(s)'"></b><p class="text-xs mt-1">Puedes cobrar solo lo vencido o sumar la cuota correspondiente.</p></div><div class="grid sm:grid-cols-2 gap-3"><button @click="chargeMode='installment'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='installment'?'border-live bg-live/10 text-live':'border-white/10'">Cuota actual<br><b>$<span x-text="money(currentQuota(currentAccount))"></span></b></button><button x-show="currentAccount?.accumulated>0" @click="chargeMode='accumulated_only'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='accumulated_only'?'charge-highlight':'border-white/10'">Solo acumuladas<br><b>$<span x-text="money(accumulatedOnly(currentAccount))"></span></b></button><button x-show="currentAccount?.accumulated>0" @click="chargeMode='with_accumulated'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='with_accumulated'?'charge-highlight':'border-white/10'">Actual + acumuladas<br><b>$<span x-text="money(accumulatedCharge(currentAccount))"></span></b></button><button @click="chargeMode='full'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='full'?'border-live bg-live/10 text-live':'border-white/10'">Pago total<br><b>$<span x-text="money(currentAccount?.balance)"></span></b></button></div><a :href="whatsappUrl()" @click="modalCharge=false" class="block text-center w-full mt-5 bg-live text-ink font-semibold rounded-xl py-3">Abrir WhatsApp</a></div></div>
 
 
 <!-- MODAL RANGOS -->
