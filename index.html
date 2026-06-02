@@ -294,14 +294,36 @@ function cajaCloud(){return {
   } else tipo='la cuota correspondiente';
   return `Hola, ${c.full_name} 👋\n\nTe saludamos de *${this.org.business_name}*.\n\n📌 Estado de tu cuenta: tienes pendiente el pago de ${tipo} por la operación “${a.concept}”.${extra}\n💵 Monto a cancelar: *USD ${this.money(amount)}*\n📊 Saldo total pendiente: *USD ${this.money(a.balance)}*\n\nPor favor, comunícate con nosotros para coordinar tu pago.`;
  },
- whatsappUrl(){
-  let c=this.currentCustomer;if(!c)return '#';
-  let phone=String(c.whatsapp_phone||c.phone||'').replace(/\D/g,'');
-  return 'https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(this.whatsappText());
+ whatsappDestination(){
+  let c=this.currentCustomer;
+  return String(c?.whatsapp_phone||c?.phone||'').replace(/\D/g,'');
  },
- async copyChargeMessage(){
-  try{await navigator.clipboard.writeText(this.whatsappText());this.note('Mensaje copiado. Envíalo desde WhatsApp Business de '+(this.org?.business_name||'tu negocio')+'.')}
-  catch(e){this.note('No se pudo copiar automáticamente. Mantén presionado el mensaje para copiarlo.')}
+ openWhatsappApp(kind='normal'){
+  let phone=this.whatsappDestination();
+  if(!phone){this.note('Este cliente no tiene número de WhatsApp registrado.');return}
+  let text=encodeURIComponent(this.whatsappText());
+  let isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  let isAndroid=/Android/.test(navigator.userAgent);
+  let link='';
+  if(kind==='business'){
+   if(isAndroid){
+    link=`intent://send?phone=${phone}&text=${text}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;end`;
+   }else if(isIOS){
+    link=`whatsapp-smb://send?phone=${phone}&text=${text}`;
+   }else{
+    link=`https://wa.me/${phone}?text=${text}`;
+   }
+  }else{
+   if(isAndroid){
+    link=`intent://send?phone=${phone}&text=${text}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+   }else if(isIOS){
+    link=`whatsapp://send?phone=${phone}&text=${text}`;
+   }else{
+    link=`https://wa.me/${phone}?text=${text}`;
+   }
+  }
+  this.modalCharge=false;
+  window.location.href=link;
  },
  async saveSettings(){if(this.role!=='owner'){this.note('Solo el dueño modifica ajustes.');return}let {error}=await this.sb.from('organization_settings').update({reference_exchange_rate:+(this.settings.reference_exchange_rate||0)}).eq('organization_id',this.org.id);if(error){this.note(error.message);return}this.note('Tasa actualizada.')},
  async imageToData(event,field){
@@ -464,7 +486,7 @@ function cajaCloud(){return {
   this.note(a==='delete'?'Cliente vacío eliminado.':(a==='archive'?'Cliente archivado. Puedes verlo activando “Archivados”.':'Cliente reactivado.'));
  },
  exportBackup(){
-  let pack={app:'La Caja App',version:'V1.4.2',exported_at:new Date().toISOString(),organization:this.org,settings:this.settings,customers:this.customers,credits:this.credits,loans:this.loans,installments:this.installments,exchanges:this.exchanges,payments:this.payments,cash_movements:this.cash,daily_cash_closings:this.cashSessions};
+  let pack={app:'La Caja App',version:'V1.4.3',exported_at:new Date().toISOString(),organization:this.org,settings:this.settings,customers:this.customers,credits:this.credits,loans:this.loans,installments:this.installments,exchanges:this.exchanges,payments:this.payments,cash_movements:this.cash,daily_cash_closings:this.cashSessions};
   let blob=new Blob([JSON.stringify(pack,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`respaldo-la-caja-${this.org.business_name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-${this.todayVE}.json`;link.click();URL.revokeObjectURL(link.href);this.note('Respaldo descargado.');
  },
  reportInPeriod(date){
@@ -639,7 +661,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <div x-show="modalPay" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalPay=false"><form @submit.prevent="savePay()" class="panel rounded-3xl w-full max-w-md p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Registrar pago</h3><button type="button" @click="modalPay=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name+' · Pendiente USD '+money(currentAccount?.balance)"></p><div x-show="currentAccount?.accumulated>0" class="accumulated-box rounded-xl p-3 text-sm text-amber-300 mb-4"><b x-text="currentAccount?.accumulated+' cuota(s) acumulada(s).'"></b> <span>El monto sugerido incluye la cuota actual más las acumuladas.</span></div><label><span class="label">Monto recibido USD *</span><input x-model="payment.amount" type="number" step=".01" class="field"></label><label class="block mt-3"><span class="label">Método</span><select x-model="payment.method" class="field"><template x-for="p in methods"><option :value="p[0]" x-text="p[1]"></option></template></select></label><input x-model="payment.reference" class="field mt-3" placeholder="Referencia"><button :disabled="busy" class="btn w-full rounded-xl py-3 mt-5">Confirmar pago</button></form></div>
 
 <!-- MODAL COBRO WHATSAPP -->
-<div x-show="modalCharge" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCharge=false"><div class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Cobrar por WhatsApp</h3><button @click="modalCharge=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name"></p><div x-show="currentAccount?.accumulated>0" class="accumulated-box rounded-xl p-3 mb-4 text-sm text-amber-300"><b x-text="'⚠ '+currentAccount?.accumulated+' cuota(s) acumulada(s)'"></b><p class="text-xs mt-1">Puedes cobrar solo lo vencido o sumar la cuota correspondiente.</p></div><div class="grid sm:grid-cols-2 gap-3"><button @click="chargeMode='installment'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='installment'?'border-live bg-live/10 text-live':'border-white/10'">Cuota actual<br><b>$<span x-text="money(currentQuota(currentAccount))"></span></b></button><button x-show="currentAccount?.accumulated>0" @click="chargeMode='accumulated_only'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='accumulated_only'?'charge-highlight':'border-white/10'">Solo acumuladas<br><b>$<span x-text="money(accumulatedOnly(currentAccount))"></span></b></button><button x-show="currentAccount?.accumulated>0" @click="chargeMode='with_accumulated'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='with_accumulated'?'charge-highlight':'border-white/10'">Actual + acumuladas<br><b>$<span x-text="money(accumulatedCharge(currentAccount))"></span></b></button><button @click="chargeMode='full'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='full'?'border-live bg-live/10 text-live':'border-white/10'">Pago total<br><b>$<span x-text="money(currentAccount?.balance)"></span></b></button></div><div class="grid grid-cols-2 gap-3 mt-4"><button @click="openWhatsAppNormal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Cobrar WhatsApp Normal</button><button @click="copyChargeMessage()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Cobrar WhatsApp Business</button><a :href="whatsappUrl()" @click="modalCharge=false" class="block text-center bg-live text-ink font-semibold rounded-xl py-3 px-2 text-sm">Abrir chat del cliente</a></div></div></div>
+<div x-show="modalCharge" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalCharge=false"><div class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><h3 class="font-semibold">Cobrar por WhatsApp</h3><button @click="modalCharge=false">×</button></div><p class="text-sm text-slate-400 mb-4" x-text="currentCustomer?.full_name"></p><div x-show="currentAccount?.accumulated>0" class="accumulated-box rounded-xl p-3 mb-4 text-sm text-amber-300"><b x-text="'⚠ '+currentAccount?.accumulated+' cuota(s) acumulada(s)'"></b><p class="text-xs mt-1">Puedes cobrar solo lo vencido o sumar la cuota correspondiente.</p></div><div class="grid sm:grid-cols-2 gap-3"><button @click="chargeMode='installment'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='installment'?'border-live bg-live/10 text-live':'border-white/10'">Cuota actual<br><b>$<span x-text="money(currentQuota(currentAccount))"></span></b></button><button x-show="currentAccount?.accumulated>0" @click="chargeMode='accumulated_only'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='accumulated_only'?'charge-highlight':'border-white/10'">Solo acumuladas<br><b>$<span x-text="money(accumulatedOnly(currentAccount))"></span></b></button><button x-show="currentAccount?.accumulated>0" @click="chargeMode='with_accumulated'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='with_accumulated'?'charge-highlight':'border-white/10'">Actual + acumuladas<br><b>$<span x-text="money(accumulatedCharge(currentAccount))"></span></b></button><button @click="chargeMode='full'" class="rounded-xl border py-4 text-sm" :class="chargeMode==='full'?'border-live bg-live/10 text-live':'border-white/10'">Pago total<br><b>$<span x-text="money(currentAccount?.balance)"></span></b></button></div><div class="grid grid-cols-2 gap-3 mt-5"><button type="button" @click="openWhatsappApp('normal')" class="w-full bg-live text-ink font-semibold rounded-xl py-3.5 text-sm">WhatsApp</button><button type="button" @click="openWhatsappApp('business')" class="w-full bg-live text-ink font-semibold rounded-xl py-3.5 text-sm">Business</button></div></div></div>
 
 
 <!-- MODAL RANGOS -->
