@@ -189,6 +189,13 @@ function cajaCloud(){return {
   if(!this.org)return;
   if(!navigator.onLine){this.restoreSnapshot();return}
   let id=this.org.id;
+  let duePromise=(async()=>{
+   let newer=await this.sb.rpc('list_due_collections_v2',{p_due_date:this.todayVE});
+   if(newer.error&&/list_due_collections_v2|schema cache|not found|Could not find/i.test(newer.error.message||'')){
+    return await this.sb.rpc('list_due_collections',{p_due_date:this.todayVE});
+   }
+   return newer;
+  })();
   let [cu,cr,lo,ins,ex,qx,pa,ca,se,du]=await this.withTimeout(Promise.all([
    this.sb.from('customers').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
    this.sb.from('credit_accounts').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
@@ -199,7 +206,7 @@ function cajaCloud(){return {
    this.sb.from('payments_received').select('*').eq('organization_id',id).order('received_at',{ascending:false}),
    this.sb.from('cash_movements').select('*').eq('organization_id',id).order('created_at',{ascending:false}),
    this.sb.from('daily_cash_closings').select('*').eq('organization_id',id).order('closing_date',{ascending:false}),
-   this.sb.rpc('list_due_collections',{p_due_date:this.todayVE})
+   duePromise
   ]));
   let bad=[cu,cr,lo,ins,ex,qx,pa,ca,se,du].find(x=>x.error);if(bad){this.note('Error: '+bad.error.message);return}
   [this.customers,this.credits,this.loans,this.installments,this.exchanges,this.quickExchanges,this.payments,this.cash,this.cashSessions,this.dueCollections]=[cu.data,cr.data,lo.data,ins.data,ex.data,qx.data||[],pa.data,ca.data,se.data,du.data||[]];
@@ -259,17 +266,26 @@ function cajaCloud(){return {
  creditNet(){return Math.max(0,(+this.op.credit.principal||0)-(+this.op.credit.initial||0))},
  creditQuota(){return this.creditNet()/Math.max(1,+this.op.credit.count||1)},
  quickProfit(){return (+this.op.exchange.amount||0)*(((+this.op.exchange.charge_pct||0)-(+this.op.exchange.cash_pct||0))/100)},
- openPay(c,a){this.currentCustomer=c;this.currentAccount=a;let suggested=a.accumulated>0?this.accumulatedCharge(a):this.currentQuota(a);this.payment={amount:suggested.toFixed(2),method:'pago_movil',reference:''};this.modalPay=true},
+ openPay(c,a){this.currentCustomer=c;this.currentAccount=a;let suggested=a.duePending>0?a.duePending:(a.accumulated>0?this.accumulatedCharge(a):this.currentQuota(a));this.payment={amount:suggested.toFixed(2),method:'pago_movil',reference:''};this.modalPay=true},
  async savePay(){
   if(!this.requireOnline())return;
   let a=this.currentAccount,c=this.currentCustomer,amt=+this.payment.amount;this.busy=true;
   let {error}=await this.sb.rpc('register_account_payment_v13',{p_customer_id:c.id,p_credit_account_id:a.kind==='credito'?a.id:null,p_loan_id:a.kind==='prestamo'?a.id:null,p_installment_id:null,p_charge_type:amt>=a.balance?'full_settlement':'partial_payment',p_amount_usd:amt,p_payment_method:this.payment.method,p_payment_reference:this.payment.reference||null,p_notes:a.accumulated>0?'Pago aplicado a cuotas acumuladas':null});
   this.busy=false;if(error){this.note(error.message);return}this.modalPay=false;await this.refresh();this.note('Pago registrado y acumulación actualizada.');
  },
+ collectionGroup(d){return d.collection_group||(+(d.accumulated_installments_count||0)>0?'accumulated':'today')},
+ collectionRequired(d){return +(d.required_usd??Math.min(+d.balance_usd,(+d.quota_usd)*(1+(+d.accumulated_installments_count||0))))},
+ collectionPending(d){return +(d.pending_required_usd??this.collectionRequired(d))},
+ collectionPaidToday(d){return +(d.paid_today_usd||0)},
+ get todayCollections(){return this.dueCollections.filter(d=>this.collectionGroup(d)==='today')},
+ get accumulatedCollections(){return this.dueCollections.filter(d=>this.collectionGroup(d)==='accumulated')},
+ get paidTodayCollections(){return this.dueCollections.filter(d=>this.collectionGroup(d)==='paid_today')},
+ get openCollectionCount(){return this.todayCollections.length+this.accumulatedCollections.length},
+ get openCollectionTotal(){return [...this.accumulatedCollections,...this.todayCollections].reduce((s,d)=>s+this.collectionPending(d),0)},
  dueCustomer(d){return {id:d.customer_id,full_name:d.customer_name,phone:d.phone,whatsapp_phone:d.whatsapp_phone}},
- dueAccount(d){return {id:d.record_id,kind:d.record_type,concept:d.concept,total:+d.total_usd,quota:+d.quota_usd,installments:+d.installments_count||1,frequency:d.frequency||'monthly',accumulated:+d.accumulated_installments_count||0,accumulatedReason:d.accumulated_reason||'',balance:+d.balance_usd}},
- get dueTodayCount(){return this.dueCollections.length},
- get dueTodayTotal(){return this.dueCollections.reduce((s,d)=>s+Math.min(+d.balance_usd,(+d.quota_usd)*(1+(+d.accumulated_installments_count||0))),0)},
+ dueAccount(d){return {id:d.record_id,kind:d.record_type,concept:d.concept,total:+d.total_usd,quota:+d.quota_usd,installments:+d.installments_count||1,frequency:d.frequency||'monthly',accumulated:+d.accumulated_installments_count||0,accumulatedReason:d.accumulated_reason||'',balance:+d.balance_usd,duePending:this.collectionPending(d),dueRequired:this.collectionRequired(d),collectionGroup:this.collectionGroup(d)}},
+ get dueTodayCount(){return this.todayCollections.length},
+ get dueTodayTotal(){return this.todayCollections.reduce((s,d)=>s+this.collectionPending(d),0)},
  openDueCharge(d){this.openCharge(this.dueCustomer(d),this.dueAccount(d))},
  openDuePay(d){this.openPay(this.dueCustomer(d),this.dueAccount(d))},
  openDueAccumulated(d){this.openAccumulated(this.dueAccount(d),'add')},
@@ -544,7 +560,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <header class="h-20 px-5 sm:px-8 sticky top-0 z-20 bg-ink/90 backdrop-blur flex justify-between items-center"><div><p class="text-xs text-slate-500" x-text="org?.business_name"></p><h2 class="text-xl font-semibold" x-text="{dashboard:'Dashboard',cobros:'Cobros de hoy',clientes:'Clientes y cobranza',fichas:'Fichas operativas',caja:'Caja diaria',reportes:'Reportes',ajustes:'Ajustes'}[view]"></h2></div><div class="flex gap-3 items-center"><button @click="install()" class="badge px-3 py-2 rounded-full text-xs hidden sm:block">Instalar</button><button @click="modalRank=true" class="rank-badge hidden sm:inline-flex" :class="rank.class"><span x-text="rank.icon"></span><span x-text="rank.name"></span></button><button @click="modalProfile=true" class="flex items-center gap-2"><template x-if="profile?.avatar_url"><img :src="profile.avatar_url" class="avatar"></template><div x-show="!profile?.avatar_url" class="w-10 h-10 rounded-xl bg-pino text-live grid place-items-center text-sm font-semibold" x-text="(profile?.full_name||'U').slice(0,2).toUpperCase()"></div></button><button @click="signout()" class="text-sm text-slate-400">Salir</button></div></header>
 <section x-show="view==='dashboard'" class="px-5 sm:px-8 pb-8 space-y-5">
 <div class="flex justify-between items-center"><p class="text-sm text-slate-500">Operación en tiempo real</p><div class="flex gap-2"><button @click="hideAmounts=!hideAmounts" class="border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-300" :title="hideAmounts?'Mostrar montos':'Ocultar montos'"><span x-text="hideAmounts?'◉':'◌'"></span> <span class="hidden sm:inline" x-text="hideAmounts?'Mostrar':'Modo captura'"></span></button><button @click="beginOp('credito')" class="btn rounded-xl px-5 py-3 text-sm font-semibold">+ Operación</button></div></div>
-<button x-show="dueTodayCount>0" @click="view='cobros'" class="due-alert rounded-2xl p-4 sm:p-5 w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left"><div class="flex gap-3 items-center"><span class="w-11 h-11 rounded-xl bg-live/10 border border-live/20 grid place-items-center text-live text-xl">◷</span><div><p class="font-medium">Tienes cobros programados para hoy</p><p class="text-sm text-slate-400"><span x-text="dueTodayCount"></span> cliente(s) · Monto sugerido USD <span x-text="money(dueTodayTotal)"></span></p></div></div><span class="badge px-4 py-2 rounded-full text-xs">Ver cobros →</span></button>
+<button x-show="openCollectionCount>0" @click="view='cobros'" class="due-alert rounded-2xl p-4 sm:p-5 w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left"><div class="flex gap-3 items-center"><span class="w-11 h-11 rounded-xl bg-live/10 border border-live/20 grid place-items-center text-live text-xl">◷</span><div><p class="font-medium">Tienes cobros pendientes</p><p class="text-sm text-slate-400"><span x-text="openCollectionCount"></span> cliente(s) · Monto pendiente USD <span x-text="money(openCollectionTotal)"></span></p></div></div><span class="badge px-4 py-2 rounded-full text-xs">Ver cobros →</span></button>
 <article class="coach-card rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4"><div class="w-12 h-12 shrink-0 rounded-2xl bg-live/10 border border-live/20 grid place-items-center text-live text-xl">✦</div><div class="flex-1"><p class="text-xs text-live uppercase tracking-[.18em]">Coach La Caja</p><h3 class="font-semibold mt-1" x-text="coach.title"></h3><p class="text-sm text-slate-400 mt-1" x-text="coach.message"></p></div><button @click="modalRank=true" class="rank-badge self-start sm:self-center" :class="rank.class"><span x-text="rank.icon"></span><span x-text="rank.name"></span></button></article>
 <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
 <article class="card neon rounded-2xl p-5"><div class="kpi-head"><p class="label !mb-0">Caja líquida</p><span class="kpi-icon kpi-cash">$</span></div><p class="text-2xl font-semibold mt-3" :class="hideAmounts?'privacy-blur':''">$<span x-text="money(liquidity)"></span></p><p class="text-live text-xs mt-4 flex gap-2 items-center"><span class="dot"></span>Activo</p></article>
@@ -556,15 +572,44 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 </section>
 <section x-show="view==='cobros'" class="px-5 sm:px-8 pb-8 space-y-5">
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <div><p class="text-sm text-slate-500">Agenda diaria de cobranza.</p><h3 class="text-lg font-medium mt-1">Control de cobros</h3><p class="text-xs text-slate-500 mt-1">Las tarjetas se mueven automaticamente segun el monto exigible pendiente.</p></div>
+  <div class="due-count rounded-2xl px-4 py-3 text-sm"><b x-text="openCollectionCount"></b> pendiente(s) · USD <b x-text="money(openCollectionTotal)"></b></div>
+</div>
+<article x-show="!openCollectionCount&&!paidTodayCollections.length" class="panel rounded-3xl p-10 text-center">
+  <div class="w-12 h-12 bg-live/10 border border-live/20 rounded-2xl grid place-items-center text-live text-xl mx-auto">✓</div>
+  <h3 class="font-medium mt-4">No hay cobros pendientes para hoy</h3>
+  <p class="text-sm text-slate-500 mt-2">La agenda mostrara automaticamente los cobros cuando exista un monto exigible.</p>
+</article>
+<article x-show="accumulatedCollections.length" class="panel rounded-3xl p-5 sm:p-6 space-y-3">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h3 class="font-medium text-amber-300">Cobros Acumulados</h3><p class="text-xs text-slate-500 mt-1">Deudas vencidas con prioridad sobre el cobro del dia.</p></div><span class="accumulated-chip" x-text="accumulatedCollections.length+' pendiente(s)'"></span></div>
+<template x-for="d in accumulatedCollections" :key="'accumulated-'+d.record_type+'-'+d.record_id">
+<article class="due-card rounded-2xl p-4 sm:p-5"><div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4"><div class="flex gap-3"><div class="w-11 h-11 rounded-xl bg-pino text-live grid place-items-center font-semibold" x-text="d.customer_name.slice(0,2).toUpperCase()"></div><div><div class="flex gap-2 items-center flex-wrap"><h4 class="font-semibold" x-text="d.customer_name"></h4><span class="badge rounded-full px-2.5 py-1 text-[10px] capitalize" x-text="d.record_type"></span><span class="accumulated-chip">Vencido</span></div><p class="text-sm text-slate-500 mt-1" x-text="d.concept"></p><p class="text-sm mt-2">Exigible: <b>USD <span x-text="money(collectionRequired(d))"></span></b> · Pendiente: <b class="text-amber-300">USD <span x-text="money(collectionPending(d))"></span></b></p><p class="text-xs text-slate-500 mt-1">Pagado hoy: USD <span x-text="money(collectionPaidToday(d))"></span> · Saldo total: USD <span x-text="money(d.balance_usd)"></span></p></div></div><div class="flex flex-wrap gap-2"><button @click="openDueCharge(d)" class="bg-live/10 text-live rounded-lg px-3 py-2.5 text-xs">Cobrar</button><button @click="openDuePay(d)" class="bg-sky-500/10 text-sky-400 rounded-lg px-3 py-2.5 text-xs">Pago</button><button @click="openDueAccumulated(d)" class="overdue-btn rounded-lg px-3 py-2.5 text-xs">Cuota no pagada</button></div></div></article>
+</template>
+</article>
+<article x-show="todayCollections.length" class="panel rounded-3xl p-5 sm:p-6 space-y-3">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h3 class="font-medium">Cobros de Hoy</h3><p class="text-xs text-slate-500 mt-1">Clientes sin deuda vencida que deben cumplir hoy.</p></div><span class="due-count rounded-full px-3 py-2 text-xs"><b x-text="todayCollections.length"></b> hoy · USD <b x-text="money(dueTodayTotal)"></b></span></div>
+<template x-for="d in todayCollections" :key="'today-'+d.record_type+'-'+d.record_id">
+<article class="due-card rounded-2xl p-4 sm:p-5"><div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4"><div class="flex gap-3"><div class="w-11 h-11 rounded-xl bg-pino text-live grid place-items-center font-semibold" x-text="d.customer_name.slice(0,2).toUpperCase()"></div><div><div class="flex gap-2 items-center flex-wrap"><h4 class="font-semibold" x-text="d.customer_name"></h4><span class="badge rounded-full px-2.5 py-1 text-[10px] capitalize" x-text="d.record_type"></span></div><p class="text-sm text-slate-500 mt-1" x-text="d.concept+' · Vence hoy'"></p><p class="text-sm mt-2">Cuota: <b>USD <span x-text="money(d.quota_usd)"></span></b> · Pendiente: <b class="text-live">USD <span x-text="money(collectionPending(d))"></span></b></p><p class="text-xs text-slate-500 mt-1">Pagado hoy: USD <span x-text="money(collectionPaidToday(d))"></span> · Saldo total: USD <span x-text="money(d.balance_usd)"></span></p></div></div><div class="flex flex-wrap gap-2"><button @click="openDueCharge(d)" class="bg-live/10 text-live rounded-lg px-3 py-2.5 text-xs">Cobrar</button><button @click="openDuePay(d)" class="bg-sky-500/10 text-sky-400 rounded-lg px-3 py-2.5 text-xs">Pago</button><button @click="openDueAccumulated(d)" class="overdue-btn rounded-lg px-3 py-2.5 text-xs">Cuota no pagada</button></div></div></article>
+</template>
+</article>
+<article x-show="paidTodayCollections.length" class="panel rounded-3xl p-5 sm:p-6 space-y-3">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h3 class="font-medium text-live">Pagados Hoy</h3><p class="text-xs text-slate-500 mt-1">Clientes que ya cumplieron completamente el monto exigible.</p></div><span class="badge rounded-full px-3 py-2 text-xs" x-text="paidTodayCollections.length+' cumplido(s)'"></span></div>
+<template x-for="d in paidTodayCollections" :key="'paid-'+d.record_type+'-'+d.record_id">
+<article class="card rounded-2xl p-4 sm:p-5"><div class="flex gap-3"><div class="w-11 h-11 rounded-xl bg-live/10 text-live grid place-items-center font-semibold" x-text="d.customer_name.slice(0,2).toUpperCase()"></div><div><div class="flex gap-2 items-center flex-wrap"><h4 class="font-semibold" x-text="d.customer_name"></h4><span class="badge rounded-full px-2.5 py-1 text-[10px] capitalize" x-text="d.record_type"></span><span class="badge rounded-full px-2.5 py-1 text-[10px]">Pagado</span></div><p class="text-sm text-slate-500 mt-1" x-text="d.concept"></p><p class="text-sm mt-2">Pagado hoy: <b class="text-live">USD <span x-text="money(collectionPaidToday(d))"></span></b> · Pendiente exigible: <b>USD 0.00</b></p><p class="text-xs text-slate-500 mt-1">Saldo total restante: USD <span x-text="money(d.balance_usd)"></span></p></div></div></article>
+</template>
+</article>
+</section>
+<section x-show="false&&view==='cobros'" class="px-5 sm:px-8 pb-8 space-y-5">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
   <div><p class="text-sm text-slate-500">Agenda diaria de cobranza.</p><h3 class="text-lg font-medium mt-1">Hoy toca pagar</h3><p class="text-xs text-slate-500 mt-1">Se actualiza automáticamente según las cuotas programadas para hoy en Venezuela.</p></div>
-  <div class="due-count rounded-2xl px-4 py-3 text-sm"><b x-text="dueTodayCount"></b> cobro(s) hoy · USD <b x-text="money(dueTodayTotal)"></b></div>
+  <div class="due-count rounded-2xl px-4 py-3 text-sm"><b x-text="openCollectionCount"></b> cobro(s) hoy · USD <b x-text="money(dueTodayTotal)"></b></div>
 </div>
 <article x-show="!dueTodayCount" class="panel rounded-3xl p-10 text-center">
   <div class="w-12 h-12 bg-live/10 border border-live/20 rounded-2xl grid place-items-center text-live text-xl mx-auto">✓</div>
   <h3 class="font-medium mt-4">No hay cuotas programadas para hoy</h3>
   <p class="text-sm text-slate-500 mt-2">La agenda mostrará automáticamente los próximos cobros cuando correspondan a la fecha.</p>
 </article>
-<div class="space-y-3" x-show="dueTodayCount>0">
+<div class="space-y-3" x-show="openCollectionCount>0">
 <template x-for="d in dueCollections" :key="d.record_type+'-'+d.record_id">
 <article class="due-card rounded-2xl p-4 sm:p-5">
 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
