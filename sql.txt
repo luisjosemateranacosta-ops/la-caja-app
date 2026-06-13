@@ -1,0 +1,255 @@
+-- ============================================================
+-- LA CAJA APP | V2.0 BETA - COBRANZA INTELIGENTE
+-- Ejecutar UNA sola vez DESPUES de V1.4 / SQL 15.
+-- No modifica register_account_payment_v13.
+-- Crea una nueva RPC compatible para clasificar cobranza diaria.
+-- ============================================================
+
+begin;
+
+create or replace function public.list_due_collections_v2(p_due_date date)
+returns table (
+  record_type text,
+  record_id uuid,
+  customer_id uuid,
+  customer_name text,
+  phone text,
+  whatsapp_phone text,
+  concept text,
+  total_usd numeric,
+  quota_usd numeric,
+  balance_usd numeric,
+  installments_count integer,
+  frequency text,
+  scheduled_installment integer,
+  due_date date,
+  accumulated_installments_count integer,
+  accumulated_reason text,
+  required_usd numeric,
+  paid_to_required_usd numeric,
+  pending_required_usd numeric,
+  paid_today_usd numeric,
+  collection_group text,
+  has_due_today boolean,
+  has_overdue boolean
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid;
+begin
+  select om.organization_id into v_org
+  from public.organization_members om
+  where om.user_id = (select auth.uid())
+    and om.status = 'active'
+  limit 1;
+
+  if v_org is null then
+    raise exception 'No tienes un negocio activo.';
+  end if;
+
+  return query
+  with payment_totals as (
+    select
+      pr.credit_account_id,
+      pr.loan_id,
+      coalesce(sum(pr.amount_usd) filter (where pr.status = 'confirmed'),0) as paid_usd,
+      coalesce(sum(pr.amount_usd) filter (
+        where pr.status = 'confirmed'
+          and (pr.received_at at time zone 'America/Caracas')::date = p_due_date
+      ),0) as paid_today_usd
+    from public.payments_received pr
+    where pr.organization_id = v_org
+    group by pr.credit_account_id, pr.loan_id
+  ),
+  credit_base as (
+    select
+      'credito'::text as record_type,
+      ca.id as record_id,
+      ca.customer_id,
+      c.full_name as customer_name,
+      c.phone,
+      c.whatsapp_phone,
+      ca.concept,
+      ca.original_balance_usd as total_usd,
+      round(ca.original_balance_usd / greatest(coalesce(ca.installments_count,1),1),2) as quota_usd,
+      round(ca.original_balance_usd - coalesce(pt.paid_usd,0),2) as balance_usd,
+      greatest(coalesce(ca.installments_count,1),1)::integer as installments_count,
+      coalesce(ca.frequency::text,'monthly') as frequency,
+      coalesce(ca.accumulated_installments_count,0)::integer as accumulated_installments_count,
+      ca.accumulated_reason,
+      coalesce(pt.paid_usd,0) as paid_usd,
+      coalesce(pt.paid_today_usd,0) as paid_today_usd,
+      coalesce(ca.first_due_date, ca.due_date) as first_due_date
+    from public.credit_accounts ca
+    join public.customers c on c.id = ca.customer_id
+    left join payment_totals pt on pt.credit_account_id = ca.id
+    where ca.organization_id = v_org
+      and ca.status <> 'cancelled'
+      and coalesce(ca.first_due_date, ca.due_date) is not null
+      and c.status <> 'inactive'
+  ),
+  loan_base as (
+    select
+      'prestamo'::text as record_type,
+      l.id as record_id,
+      l.customer_id,
+      c.full_name as customer_name,
+      c.phone,
+      c.whatsapp_phone,
+      l.concept,
+      l.total_receivable_usd as total_usd,
+      round(l.total_receivable_usd / greatest(coalesce(l.installments_count,1),1),2) as quota_usd,
+      round(l.total_receivable_usd - coalesce(pt.paid_usd,0),2) as balance_usd,
+      greatest(coalesce(l.installments_count,1),1)::integer as installments_count,
+      coalesce(l.frequency::text,'monthly') as frequency,
+      coalesce(l.accumulated_installments_count,0)::integer as accumulated_installments_count,
+      l.accumulated_reason,
+      coalesce(pt.paid_usd,0) as paid_usd,
+      coalesce(pt.paid_today_usd,0) as paid_today_usd,
+      l.first_due_date
+    from public.loans l
+    join public.customers c on c.id = l.customer_id
+    left join payment_totals pt on pt.loan_id = l.id
+    where l.organization_id = v_org
+      and l.status <> 'cancelled'
+      and l.first_due_date is not null
+      and c.status <> 'inactive'
+  ),
+  base as (
+    select * from credit_base
+    union all
+    select * from loan_base
+  ),
+  scheduled as (
+    select
+      b.*,
+      coalesce(sum(1) filter (where s.scheduled_date < p_due_date),0)::integer as scheduled_before_count,
+      coalesce(max(s.installment_number) filter (where s.scheduled_date = p_due_date),0)::integer as scheduled_today_number,
+      bool_or(s.scheduled_date = p_due_date) as has_due_today
+    from base b
+    cross join lateral (
+      select
+        (g.n + 1)::integer as installment_number,
+        case b.frequency
+          when 'daily' then b.first_due_date + g.n
+          when 'weekly' then b.first_due_date + (g.n * 7)
+          when 'biweekly' then b.first_due_date + (g.n * 14)
+          else (b.first_due_date + (g.n || ' months')::interval)::date
+        end as scheduled_date
+      from generate_series(0, greatest(b.installments_count - 1, 0)) as g(n)
+    ) s
+    group by
+      b.record_type, b.record_id, b.customer_id, b.customer_name, b.phone,
+      b.whatsapp_phone, b.concept, b.total_usd, b.quota_usd, b.balance_usd,
+      b.installments_count, b.frequency, b.accumulated_installments_count,
+      b.accumulated_reason, b.paid_usd, b.paid_today_usd, b.first_due_date
+  ),
+  calculated as (
+    select
+      s.*,
+      least(
+        s.total_usd,
+        round(s.quota_usd * s.scheduled_before_count,2)
+      ) as scheduled_before_usd,
+      least(
+        s.total_usd,
+        round(s.quota_usd * (s.scheduled_before_count + case when s.has_due_today then 1 else 0 end),2)
+      ) as scheduled_through_today_usd,
+      round(s.quota_usd * greatest(s.accumulated_installments_count,0),2) as manual_overdue_usd
+    from scheduled s
+    where s.balance_usd > 0 or s.paid_today_usd > 0
+  ),
+  classified as (
+    select
+      c.*,
+      greatest(
+        greatest(0, round(c.scheduled_before_usd - c.paid_usd,2)),
+        case when c.accumulated_installments_count > 0 then c.manual_overdue_usd else 0 end
+      ) as overdue_pending_usd,
+      greatest(
+        0,
+        round(c.scheduled_through_today_usd - c.paid_usd,2)
+      ) as scheduled_pending_today_usd
+    from calculated c
+  ),
+  final_rows as (
+    select
+      x.*,
+      (x.overdue_pending_usd > 0) as has_overdue,
+      case
+        when x.overdue_pending_usd > 0 then least(
+          x.balance_usd + x.paid_today_usd,
+          round(x.overdue_pending_usd + case when x.has_due_today then x.quota_usd else 0 end,2)
+        )
+        when x.has_due_today then least(
+          x.balance_usd + x.paid_today_usd,
+          x.quota_usd
+        )
+        else 0
+      end as required_usd
+    from classified x
+  ),
+  grouped as (
+    select
+      f.*,
+      least(f.required_usd, f.paid_today_usd) as paid_to_required_usd,
+      greatest(0, round(f.required_usd - least(f.required_usd, f.paid_today_usd),2)) as pending_required_usd,
+      case
+        when f.has_overdue and greatest(0, round(f.required_usd - least(f.required_usd, f.paid_today_usd),2)) > 0 then 'accumulated'
+        when not f.has_overdue and f.has_due_today and greatest(0, round(f.required_usd - least(f.required_usd, f.paid_today_usd),2)) > 0 then 'today'
+        when f.paid_today_usd > 0 and greatest(0, round(f.scheduled_through_today_usd - f.paid_usd,2)) = 0 then 'paid_today'
+        else null
+      end as collection_group
+    from final_rows f
+  )
+  select
+    g.record_type,
+    g.record_id,
+    g.customer_id,
+    g.customer_name,
+    g.phone,
+    g.whatsapp_phone,
+    g.concept,
+    g.total_usd,
+    g.quota_usd,
+    greatest(g.balance_usd,0) as balance_usd,
+    g.installments_count,
+    g.frequency,
+    g.scheduled_today_number as scheduled_installment,
+    p_due_date as due_date,
+    g.accumulated_installments_count,
+    g.accumulated_reason,
+    round(g.required_usd,2) as required_usd,
+    round(g.paid_to_required_usd,2) as paid_to_required_usd,
+    round(g.pending_required_usd,2) as pending_required_usd,
+    round(g.paid_today_usd,2) as paid_today_usd,
+    g.collection_group,
+    g.has_due_today,
+    g.has_overdue
+  from grouped g
+  where g.collection_group is not null
+  order by
+    case g.collection_group
+      when 'accumulated' then 1
+      when 'today' then 2
+      when 'paid_today' then 3
+      else 4
+    end,
+    g.customer_name,
+    g.record_type,
+    g.concept;
+end;
+$$;
+
+revoke all on function public.list_due_collections_v2(date) from public, anon;
+grant execute on function public.list_due_collections_v2(date) to authenticated;
+
+commit;
+
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name = 'list_due_collections_v2';
