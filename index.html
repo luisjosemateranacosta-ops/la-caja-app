@@ -221,15 +221,48 @@ function cajaCloud(){return {
  },
  beginOp(t,c=null){this.openOp(t,c)},
  openOp(t,c=null){this.tab=t;this.currentCustomer=c;this.op.customer_id=c?.id||'';this.modalOp=true},
+ loanDayFromDate(d){let raw=String(d||this.todayVE||new Date().toISOString().slice(0,10)).slice(0,10),n=+raw.split('-')[2];return Math.max(1,Math.min(31,Number.isFinite(n)?n:new Date().getDate()))},
+ loanIdFromRpcResult(result){let d=result?.data;if(!d)return null;if(typeof d==='string')return d;if(Array.isArray(d))return d[0]?.loan_id||d[0]?.id||null;return d.loan_id||d.id||d.p_loan_id||null},
+ async findNewLoanForV2(payload,result){
+  let id=this.loanIdFromRpcResult(result);
+  let q=this.sb.from('loans').select('id,organization_id,customer_id,concept,principal_usd,capital_original,capital_pendiente,intereses_acumulados,ultimo_calculo_interes,dia_cobro,disbursement_date,first_due_date,created_at').eq('organization_id',this.org.id);
+  if(id)q=q.eq('id',id).limit(1);
+  else q=q.eq('customer_id',payload.customer_id).order('created_at',{ascending:false}).limit(10);
+  let {data,error}=await q;if(error)throw error;let rows=data||[];
+  if(id)return rows[0]||null;
+  let principal=this.loanNumber(payload.principal);
+  return rows.find(l=>Math.abs(this.loanNumber(l.principal_usd)-principal)<0.01&&(!payload.disbursement_date||String(l.disbursement_date||'').slice(0,10)===payload.disbursement_date)&&(!payload.first_due_date||String(l.first_due_date||'').slice(0,10)===payload.first_due_date))||rows.find(l=>Math.abs(this.loanNumber(l.principal_usd)-principal)<0.01)||null;
+ },
+ async ensureNewLoanV2State(payload,result){
+  let loan=await this.findNewLoanForV2(payload,result);
+  if(!loan)throw new Error('No se encontró el préstamo recién creado para inicializar Loan V2.');
+  let pay=await this.sb.from('payments_received').select('id').eq('organization_id',this.org.id).eq('loan_id',loan.id).limit(1);
+  if(pay.error)throw pay.error;
+  if(pay.data?.length)throw new Error('El préstamo ya tiene pagos; no se puede inicializar automáticamente como nuevo.');
+  let principal=this.loanNumber(payload.principal??loan.principal_usd??loan.capital_original);
+  if(principal<=0)throw new Error('Capital inválido para inicializar Loan V2.');
+  let disbursement=String(payload.disbursement_date||loan.disbursement_date||this.todayVE).slice(0,10);
+  let firstDue=String(payload.first_due_date||loan.first_due_date||disbursement).slice(0,10);
+  let patch={capital_original:principal,capital_pendiente:principal,intereses_acumulados:0,ultimo_calculo_interes:disbursement,dia_cobro:this.loanDayFromDate(firstDue)};
+  let {error}=await this.sb.from('loans').update(patch).eq('id',loan.id).eq('organization_id',this.org.id);
+  if(error)throw error;
+ },
  async saveOp(){
   if(!this.requireOnline())return;
   if(this.tab!=='cambio'&&!this.op.customer_id){this.note('Selecciona un cliente.');return}
-  this.busy=true;let result;
-  if(this.tab==='credito') result=await this.sb.rpc('register_credit_operation_v2',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.credit.principal,p_initial_payment_usd:+(this.op.credit.initial||0),p_installments_count:+(this.op.credit.count||1),p_frequency:this.op.credit.frequency,p_first_due_date:this.op.credit.first,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
-  if(this.tab==='prestamo') result=await this.sb.rpc('register_loan_operation',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.loan.principal,p_interest_total_pct:+this.op.loan.interest,p_installments_count:+this.op.loan.count,p_frequency:this.op.loan.frequency,p_disbursement_date:this.op.loan.start,p_first_due_date:this.op.loan.first,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
-  if(this.tab==='cambio') result=await this.sb.rpc('register_quick_exchange_operation_v3',{p_amount_received_usd:+this.op.exchange.amount,p_cash_cost_pct:+this.op.exchange.cash_pct,p_client_charge_pct:+this.op.exchange.charge_pct});
+  this.busy=true;let result,opType=this.tab;
+  try{
+   if(this.tab==='credito') result=await this.sb.rpc('register_credit_operation_v2',{p_customer_id:this.op.customer_id,p_concept:this.op.concept,p_principal_usd:+this.op.credit.principal,p_initial_payment_usd:+(this.op.credit.initial||0),p_installments_count:+(this.op.credit.count||1),p_frequency:this.op.credit.frequency,p_first_due_date:this.op.credit.first,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
+   if(this.tab==='prestamo'){
+    let loanPayload={customer_id:this.op.customer_id,concept:this.op.concept,principal:+this.op.loan.principal,interest_total_pct:+this.op.loan.interest,installments_count:+this.op.loan.count,frequency:this.op.loan.frequency,disbursement_date:this.op.loan.start,first_due_date:this.op.loan.first};
+    result=await this.sb.rpc('register_loan_operation',{p_customer_id:loanPayload.customer_id,p_concept:loanPayload.concept,p_principal_usd:loanPayload.principal,p_interest_total_pct:loanPayload.interest_total_pct,p_installments_count:loanPayload.installments_count,p_frequency:loanPayload.frequency,p_disbursement_date:loanPayload.disbursement_date,p_first_due_date:loanPayload.first_due_date,p_notes:this.op.notes||null,p_payment_method:this.op.method,p_payment_reference:this.op.reference||null});
+    if(result.error){this.busy=false;this.note('No se guardó: '+result.error.message);return}
+    await this.ensureNewLoanV2State(loanPayload,result);
+   }
+   if(this.tab==='cambio') result=await this.sb.rpc('register_quick_exchange_operation_v3',{p_amount_received_usd:+this.op.exchange.amount,p_cash_cost_pct:+this.op.exchange.cash_pct,p_client_charge_pct:+this.op.exchange.charge_pct});
+  }catch(e){this.busy=false;this.note('No se pudo inicializar Loan V2: '+(e.message||e));return}
   this.busy=false;if(result.error){this.note('No se guardó: '+result.error.message);return}
-  this.modalOp=false;this.clearOp();await this.refresh();this.note(this.tab==='cambio'?'Cambio rápido registrado y ganancia calculada.':'Operación guardada en la nube.');
+  this.modalOp=false;this.clearOp();await this.refresh();this.note(opType==='cambio'?'Cambio rápido registrado y ganancia calculada.':'Operación guardada en la nube.');
  },
  clearOp(){this.op={customer_id:'',concept:'',notes:'',method:'cash_usd',reference:'',credit:{principal:'',initial:'',count:1,frequency:'monthly',first:''},loan:{principal:'',interest:'',count:'',frequency:'monthly',start:new Date().toISOString().slice(0,10),first:''},exchange:{amount:'',cash_pct:'',charge_pct:''}}},
  accounts(c){
@@ -244,7 +277,7 @@ function cajaCloud(){return {
  loanInterestAccumulated(loan){return Math.max(0,this.loanNumber(loan?.intereses_acumulados))},
  loanInterestRate(loan){return this.loanNumber(loan?.interest_total_pct??loan?.interest_pct??0)},
  loanLegacyTotal(loan){return this.loanNumber(loan?.total_receivable_usd??loan?.total_usd??loan?.original_balance_usd??this.loanCapitalOriginal(loan))},
- loanV2Total(loan){return this.loanCapitalOriginal(loan)+this.loanInterestAccumulated(loan)},
+ loanV2Total(loan){return this.loanPending(loan)},
  loanPending(loan){return this.loanCapitalPending(loan)+this.loanInterestAccumulated(loan)},
  loanConfirmedPayments(loan){return this.payments.filter(p=>p.loan_id===loan?.id&&p.status==='confirmed')},
  loanAllPayments(loan){return this.payments.filter(p=>p.loan_id===loan?.id).sort((a,b)=>String(b.received_at||b.created_at||'').localeCompare(String(a.received_at||a.created_at||'')))},
@@ -253,7 +286,7 @@ function cajaCloud(){return {
  loanCapitalPaid(loan){return Math.max(0,this.loanCapitalOriginal(loan)-this.loanCapitalPending(loan))},
  loanInterestPaid(loan){return this.loanConfirmedPayments(loan).reduce((s,p)=>s+this.paymentInterestPaid(p),0)},
  loanPaid(loan){return this.loanCapitalPaid(loan)+this.loanInterestPaid(loan)},
- loanQuota(loan){return Math.round((this.loanCapitalOriginal(loan)/Math.max(1,+loan?.installments_count||1))*100)/100},
+ loanQuota(loan){return Math.round(Math.min(this.loanCapitalPending(loan),this.loanPending(loan))*100)/100},
  loanFrequencyLabel(f){return {daily:'Diaria',weekly:'Semanal',biweekly:'Quincenal',monthly:'Mensual'}[f||'monthly']||f||'Mensual'},
  loanDateLabel(d){if(!d)return '—';let raw=String(d).slice(0,10);try{return new Date(raw+'T12:00:00').toLocaleDateString('es-VE',{timeZone:'America/Caracas',day:'2-digit',month:'2-digit',year:'numeric'})}catch(e){return raw}},
  loanPaymentDate(p){let raw=p?.received_at||p?.created_at;if(!raw)return '—';try{return new Intl.DateTimeFormat('es-VE',{timeZone:'America/Caracas',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(raw))}catch(e){return raw}},
