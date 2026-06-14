@@ -210,6 +210,7 @@ function cajaCloud(){return {
   ]));
   let bad=[cu,cr,lo,ins,ex,qx,pa,ca,se,du].find(x=>x.error);if(bad){this.note('Error: '+bad.error.message);return}
   [this.customers,this.credits,this.loans,this.installments,this.exchanges,this.quickExchanges,this.payments,this.cash,this.cashSessions,this.dueCollections]=[cu.data,cr.data,lo.data,ins.data,ex.data,qx.data||[],pa.data,ca.data,se.data,du.data||[]];
+  await this.accrueLoanV2Interests();
   this.lastSync=new Date().toISOString();this.online=true;this.offlineMode=false;this.saveSnapshot();
  },
  async addCustomer(){
@@ -276,6 +277,15 @@ function cajaCloud(){return {
  loanCapitalPending(loan){return Math.max(0,this.loanNumber(loan?.capital_pendiente))},
  loanInterestAccumulated(loan){return Math.max(0,this.loanNumber(loan?.intereses_acumulados))},
  loanInterestRate(loan){return this.loanNumber(loan?.interest_total_pct??loan?.interest_pct??0)},
+ loanDateISO(d){let s=String(d||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(s)?s:''},
+ loanDateObj(d){let s=this.loanDateISO(d);return s?new Date(s+'T12:00:00'):null},
+ loanAddDaysISO(d,n){let x=this.loanDateObj(d);if(!x)return '';x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)},
+ loanMonthDateISO(y,m,day){let last=new Date(y,m+1,0).getDate(),x=new Date(y,m,Math.min(Math.max(1,+day||1),last),12);return x.toISOString().slice(0,10)},
+ loanInterestDueDay(loan){return Math.max(1,Math.min(31,+loan?.dia_cobro||+String(loan?.first_due_date||'').slice(8,10)||+String(loan?.disbursement_date||'').slice(8,10)||1))},
+ loanNextMonthlyInterestDate(loan,base){let b=this.loanDateObj(base);if(!b)return '';let due=this.loanMonthDateISO(b.getFullYear(),b.getMonth(),this.loanInterestDueDay(loan));if(due<=base)due=this.loanMonthDateISO(b.getFullYear(),b.getMonth()+1,this.loanInterestDueDay(loan));return due},
+ loanNextInterestDate(loan,base,useFirst=false){let f=loan?.frequency||'monthly',first=this.loanDateISO(loan?.first_due_date);if(useFirst&&first&&first>base)return first;if(f==='weekly')return this.loanAddDaysISO(base,7);if(f==='biweekly')return this.loanAddDaysISO(base,14);if(f==='daily')return this.loanAddDaysISO(base,1);return this.loanNextMonthlyInterestDate(loan,base)},
+ loanInterestAccrualPreview(loan,asOf=this.todayVE){let base=this.loanDateISO(loan?.ultimo_calculo_interes)||this.loanDateISO(loan?.disbursement_date)||this.loanDateISO(loan?.first_due_date)||this.todayVE,until=this.loanDateISO(asOf)||this.todayVE,capital=this.loanCapitalPending(loan),rate=this.loanInterestRate(loan);if(!loan?.id||capital<=0||rate<=0||base>=until)return {periods:0,interest:0,lastDate:'',nextDate:this.loanNextInterestDate(loan,base,!loan?.ultimo_calculo_interes)};let due=this.loanNextInterestDate(loan,base,!loan?.ultimo_calculo_interes),periods=0,lastDate='',guard=0;while(due&&due<=until&&guard<240){periods++;lastDate=due;due=this.loanNextInterestDate(loan,due,false);guard++}let interest=Math.round((capital*(rate/100)*periods)*100)/100;return {periods,interest,lastDate,nextDate:due}},
+ async accrueLoanV2Interests(){if(!this.org||!Array.isArray(this.loans)||!this.loans.length)return;for(let loan of this.loans){if(loan.status==='cancelled'||this.loanCapitalPending(loan)<=0)continue;let preview=this.loanInterestAccrualPreview(loan);if(preview.periods<=0||preview.interest<=0||!preview.lastDate)continue;let nextInterest=Math.round((this.loanInterestAccumulated(loan)+preview.interest)*100)/100;let {error}=await this.sb.from('loans').update({intereses_acumulados:nextInterest,ultimo_calculo_interes:preview.lastDate}).eq('id',loan.id).eq('organization_id',this.org.id);if(error){this.note('No se pudo acumular interés Loan V2: '+error.message);continue}loan.intereses_acumulados=nextInterest;loan.ultimo_calculo_interes=preview.lastDate}},
  loanLegacyTotal(loan){return this.loanNumber(loan?.total_receivable_usd??loan?.total_usd??loan?.original_balance_usd??this.loanCapitalOriginal(loan))},
  loanV2Total(loan){return this.loanPending(loan)},
  loanPending(loan){return this.loanCapitalPending(loan)+this.loanInterestAccumulated(loan)},
@@ -364,7 +374,9 @@ function cajaCloud(){return {
   let loan=a.loan||this.loans.find(x=>x.id===a.id)||a;
   let nextCapital=Math.max(0,this.loanCapitalPending(loan)-capitalPaid);
   let nextInterest=Math.max(0,this.loanInterestAccumulated(loan)-interestPaid);
-  let {error}=await this.sb.from('loans').update({capital_pendiente:nextCapital,intereses_acumulados:nextInterest}).eq('id',loan.id).eq('organization_id',this.org.id);
+  let patch={capital_pendiente:nextCapital,intereses_acumulados:nextInterest};
+  if(interestPaid>0)patch.ultimo_calculo_interes=this.todayVE;
+  let {error}=await this.sb.from('loans').update(patch).eq('id',loan.id).eq('organization_id',this.org.id);
   if(error)throw error;
  },
  async savePay(){
