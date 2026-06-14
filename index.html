@@ -336,10 +336,18 @@ function cajaCloud(){return {
  loanPaymentCapitalDraft(){return this.loanPaymentApplication().capitalPaid},
  syncLoanPaymentTotal(){},
  openPay(c,a){
-  this.currentCustomer=c;this.currentAccount=a;
-  let suggested=a.duePending>0?a.duePending:(a.accumulated>0?this.accumulatedCharge(a):this.currentQuota(a));
-  if(a.kind==='prestamo'){
-   suggested=this.loanNumber(a.balance);
+  this.currentCustomer=c;
+  let account=a;
+  if(account?.kind==='prestamo'){
+   let loan=account.loan||this.loans.find(x=>x.id===account.id);
+   if(loan){
+    account=this.loanDetailAccount(loan);
+   }
+  }
+  this.currentAccount=account;
+  let suggested=account.duePending>0?account.duePending:(account.accumulated>0?this.accumulatedCharge(account):this.currentQuota(account));
+  if(account.kind==='prestamo'){
+   suggested=this.loanNumber(account.balance);
    this.payment={amount:suggested.toFixed(2),capital_paid_usd:'',interest_paid_usd:'',method:'pago_movil',reference:''};
   } else {
    this.payment={amount:suggested.toFixed(2),capital_paid_usd:'',interest_paid_usd:'',method:'pago_movil',reference:''};
