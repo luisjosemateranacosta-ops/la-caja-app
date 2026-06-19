@@ -82,7 +82,7 @@ function cajaCloud(){return {
  sb:null,user:null,org:null,role:null,profile:null,settings:null,loading:true,busy:false,view:'dashboard',error:'',toast:'',chartStatus:'',installPrompt:null,help:false,modalProfile:false,
  login:{email:'',password:''}, modalCustomer:false,modalEditCustomer:false,modalOp:false,modalPay:false,modalCharge:false,modalOpenCash:false,modalCloseCash:false,modalRank:false,modalVoid:false,modalCustomerAction:false,modalAccumulated:false,modalLoanDetail:false,modalExpense:false,hideAmounts:false, tab:'credito', activeDepartment:null, currentCustomer:null,currentAccount:null,currentLoan:null,
  customers:[],credits:[],loans:[],installments:[],exchanges:[],quickExchanges:[],payments:[],cash:[],cashSessions:[],dueCollections:[],expenses:[],
- customer:{full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''}, customerPhotoDraft:'', customerEditPhotoDraft:'',
+ customer:{full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''}, customerPhotoDraft:'', customerEditPhotoDraft:'', customerPhotoChanged:false, customerEditPhotoChanged:false, customerPhotoUrls:{}, customerPhotoBucket:'customer-photos',
  op:{customer_id:'',concept:'',notes:'',method:'cash_usd',reference:'',credit:{principal:'',initial:'',count:1,frequency:'monthly',first:''},loan:{principal:'',interest:'',frequency:'monthly',start:new Date().toISOString().slice(0,10),first:''},exchange:{amount:'',cash_pct:'',charge_pct:''}},
  payment:{amount:'',capital_paid_usd:'',interest_paid_usd:'',method:'pago_movil',reference:''}, expense:{name:'',category:'Transporte',amount:'',date:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()),note:''}, expenseEditId:null, expensePeriod:'month', expenseDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), chargeMode:'installment', identity:{business_name:'',business_phone:'',full_name:'',logo_data:'',avatar_data:''}, customerEdit:{}, opening:{balance:'0',notes:''}, closing:{actual:'',notes:''}, cashPeriod:'day', cashDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), collectionsView:'list', collectionsMonth:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()).slice(0,7), trendPeriod:'week', customerSearch:'', reportPeriod:'day', reportDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()), identityRemoveLogo:false, identityRemoveAvatar:false, showArchivedCustomers:false, showVoidedOperations:false, showVoidedCash:false, voidTarget:null, voidReason:'', customerAction:null, customerActionReason:'', accumulationMode:'add', accumulationTarget:null, accumulation:{count:0,reason:''}, online:navigator.onLine,offlineMode:false,lastSync:'',resumeBusy:false, exchangePeriod:'day',exchangeDate:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas'}).format(new Date()),
  currencies:['USD','VES','USDT','USDC','EUR','COP','PEN','CLP','ARS','BRL','MXN','DOP','PAB','CRC','GTQ','HNL','NIO','BOB','PYG','UYU','CAD'],
@@ -199,15 +199,17 @@ function cajaCloud(){return {
   let bad=[cu,cr,lo,ins,ex,qx,pa,ca,se,du].find(x=>x.error);if(bad){this.note('Error: '+bad.error.message);return}
   [this.customers,this.credits,this.loans,this.installments,this.exchanges,this.quickExchanges,this.payments,this.cash,this.cashSessions,this.dueCollections]=[cu.data,cr.data,lo.data,ins.data,ex.data,qx.data||[],pa.data,ca.data,se.data,du.data||[]];
   await this.accrueLoanV2Interests();
+  await this.loadCustomerPhotos();
   this.lastSync=new Date().toISOString();this.online=true;this.offlineMode=false;this.saveSnapshot();
  },
  async addCustomer(){
   if(!this.requireOnline())return;
   if(!this.customer.full_name.trim()||!this.customer.document_id.trim()||!this.customer.phone.trim()){this.note('Completa nombre, cédula y teléfono.');return}
   this.busy=true;let p={...this.customer,whatsapp_phone:this.customer.whatsapp_phone||this.customer.phone,organization_id:this.org.id,created_by:this.user.id};
-  let {error}=await this.sb.from('customers').insert(p);this.busy=false;if(error){this.note(error.message);return}
-  if(this.customerPhotoDraft)this.saveCustomerPhoto({document_id:this.customer.document_id},this.customerPhotoDraft);
-  this.customer={full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''};this.customerPhotoDraft='';this.modalCustomer=false;await this.refresh();this.note('Cliente guardado.');
+  let {data,error}=await this.sb.from('customers').insert(p).select('*').single();
+  if(error){this.busy=false;this.note(error.message);return}
+  try{if(this.customerPhotoChanged&&this.customerPhotoDraft)await this.uploadCustomerPhoto(data,this.customerPhotoDraft)}catch(e){this.note('Cliente guardado, pero no se pudo subir la foto: '+(e.message||e))}
+  this.busy=false;this.customer={full_name:'',document_id:'',phone:'',whatsapp_phone:'',gender:'F',avatar_color:'#0b5345',notes:''};this.customerPhotoDraft='';this.customerPhotoChanged=false;this.modalCustomer=false;await this.refresh();this.note('Cliente guardado.');
  },
  beginOp(t,c=null){this.openOp(t,c)},
  openOp(t,c=null){this.tab=t;this.currentCustomer=c;this.op.customer_id=c?.id||'';this.modalOp=true},
@@ -301,20 +303,37 @@ function cajaCloud(){return {
  loanPaymentMethodLabel(m){return (this.methods.find(x=>x[0]===m)||['',m||'—'])[1]},
  loanSummary(loan){let capitalOriginal=this.loanCapitalOriginal(loan),capitalPending=this.loanCapitalPending(loan),interestPending=this.loanInterestAccumulated(loan),capitalPaid=this.loanCapitalPaid(loan),interestPaid=this.loanInterestPaid(loan),pending=this.loanPending(loan);return {customer:this.loanCustomer(loan),capitalOriginal,capitalPending,interestPending,capitalPaid,interestPaid,totalPaid:capitalPaid+interestPaid,pending,totalV2:pending,totalLegacy:this.loanLegacyTotal(loan),frequency:this.loanFrequencyLabel(loan?.frequency),disbursement:loan?.disbursement_date||loan?.created_at?.slice?.(0,10)||'',first:loan?.first_due_date||'',next:this.loanNextDueDate(loan),status:this.loanStatus(loan),progress:this.loanProgress(loan),payments:this.loanAllPayments(loan)}},
  debt(c){return this.accounts(c).reduce((s,a)=>s+a.balance,0)},
- customerPhotoKey(c){return 'la-caja-customer-photo-'+(this.org?.id||'org')+'-'+(c?.id||c?.document_id||'draft')},
- customerPhoto(c){try{return localStorage.getItem(this.customerPhotoKey(c))||localStorage.getItem('la-caja-customer-photo-'+(this.org?.id||'org')+'-'+(c?.document_id||''))||''}catch(e){return ''}},
- saveCustomerPhoto(c,data){try{if(data)localStorage.setItem(this.customerPhotoKey(c),data)}catch(e){}},
+ customerPhotoPath(c){return (this.org?.id||'org')+'/'+(c?.id||'draft')+'.jpg'},
+ customerPhoto(c){return c?.id?(this.customerPhotoUrls?.[c.id]||''):''},
+ async loadCustomerPhotos(){
+  if(!this.sb||!this.org?.id||!Array.isArray(this.customers)){this.customerPhotoUrls={};return}
+  let urls={};await Promise.all(this.customers.map(async c=>{
+   if(!c?.id)return;
+   let {data,error}=await this.sb.storage.from(this.customerPhotoBucket).createSignedUrl(this.customerPhotoPath(c),60*60*24*7);
+   if(!error&&data?.signedUrl)urls[c.id]=data.signedUrl;
+  }));this.customerPhotoUrls=urls;
+ },
+ dataUrlToBlob(data){let parts=String(data||'').split(','),mime=(parts[0].match(/:(.*?);/)||[])[1]||'image/jpeg',bin=atob(parts[1]||''),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return new Blob([arr],{type:mime})},
+ async uploadCustomerPhoto(c,data){
+  if(!this.sb||!c?.id||!data)return;
+  if(!String(data).startsWith('data:image/'))return;
+  let path=this.customerPhotoPath(c),blob=this.dataUrlToBlob(data);
+  let {error}=await this.sb.storage.from(this.customerPhotoBucket).upload(path,blob,{upsert:true,contentType:'image/jpeg',cacheControl:'60'});
+  if(error)throw error;
+  let signed=await this.sb.storage.from(this.customerPhotoBucket).createSignedUrl(path,60*60*24*7);
+  if(!signed.error&&signed.data?.signedUrl)this.customerPhotoUrls={...this.customerPhotoUrls,[c.id]:signed.data.signedUrl};
+ },
  customerInitials(c){let name=(c?.full_name||'Cliente').trim();return name.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'LC'},
  async chooseCustomerImage(event,mode='new'){
   let file=event.target.files?.[0]; if(!file)return;
   if(file.size>5000000){this.note('Selecciona una imagen menor a 5 MB.');return}
   let source=await new Promise((ok,fail)=>{let r=new FileReader();r.onload=()=>ok(r.result);r.onerror=fail;r.readAsDataURL(file)});
   let img=await new Promise((ok,fail)=>{let i=new Image();i.onload=()=>ok(i);i.onerror=fail;i.src=source});
-  let canvas=document.createElement('canvas'), max=256, scale=Math.min(1,max/Math.max(img.width,img.height));
+  let canvas=document.createElement('canvas'), max=512, scale=Math.min(1,max/Math.max(img.width,img.height));
   canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
   canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
   let data=canvas.toDataURL('image/jpeg',.78);
-  if(mode==='edit')this.customerEditPhotoDraft=data;else this.customerPhotoDraft=data;
+  if(mode==='edit'){this.customerEditPhotoDraft=data;this.customerEditPhotoChanged=true}else{this.customerPhotoDraft=data;this.customerPhotoChanged=true};
  },
  crmSortedCustomers(){return this.filteredCustomers.slice().sort((a,b)=>(this.customerOperationCount(b)-this.customerOperationCount(a))||(this.debt(b)-this.debt(a))||String(a.full_name||'').localeCompare(String(b.full_name||'')))},
  crmSelectedCustomer(){let list=this.crmSortedCustomers();if(!list.length)return null;if(this.currentCustomer&&list.some(c=>c.id===this.currentCustomer.id))return list.find(c=>c.id===this.currentCustomer.id);return list[0]},
@@ -501,7 +520,7 @@ function cajaCloud(){return {
   if(file.size>5000000){this.note('Selecciona una imagen menor a 5 MB.');return}
   let source=await new Promise((ok,fail)=>{let r=new FileReader();r.onload=()=>ok(r.result);r.onerror=fail;r.readAsDataURL(file)});
   let img=await new Promise((ok,fail)=>{let i=new Image();i.onload=()=>ok(i);i.onerror=fail;i.src=source});
-  let canvas=document.createElement('canvas'), max=256, scale=Math.min(1,max/Math.max(img.width,img.height));
+  let canvas=document.createElement('canvas'), max=512, scale=Math.min(1,max/Math.max(img.width,img.height));
   canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
   canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
   this.identity[field]=canvas.toDataURL('image/jpeg',.78);
@@ -666,11 +685,13 @@ function cajaCloud(){return {
  get exchangePeriodProfit(){return this.exchangePeriodRows.reduce((s,x)=>s+(+(x.profit_usd ?? x.fee_usd)||0),0)},
  get exchangeQuickVolume(){return this.activeQuickExchanges.filter(x=>this.exchangeInPeriod(this.movementDay(x))).reduce((s,x)=>s+(+x.amount_received_usd||0),0)},
  departmentTitle(key){return {credito:'Créditos',prestamo:'Préstamos',cambio:'Cambios'}[key]||'Departamentos'},
- startEdit(c){this.customerEdit={...c};this.customerEditPhotoDraft=this.customerPhoto(c)||'';this.modalEditCustomer=true},
+ startEdit(c){this.customerEdit={...c};this.customerEditPhotoDraft=this.customerPhoto(c)||'';this.customerEditPhotoChanged=false;this.modalEditCustomer=true},
  async saveCustomerEdit(){
   if(!this.requireOnline())return;
-  let c=this.customerEdit;this.busy=true;let {error}=await this.sb.rpc('update_customer_details',{p_customer_id:c.id,p_full_name:c.full_name,p_document_id:c.document_id,p_phone:c.phone,p_whatsapp_phone:c.whatsapp_phone||c.phone,p_avatar_color:c.avatar_color,p_notes:c.notes||null});this.busy=false;
-  if(error){this.note('No se pudo modificar: '+error.message);return}if(this.customerEditPhotoDraft)this.saveCustomerPhoto(c,this.customerEditPhotoDraft);this.modalEditCustomer=false;await this.refresh();this.note('Datos del cliente actualizados.');
+  let c=this.customerEdit;this.busy=true;let {error}=await this.sb.rpc('update_customer_details',{p_customer_id:c.id,p_full_name:c.full_name,p_document_id:c.document_id,p_phone:c.phone,p_whatsapp_phone:c.whatsapp_phone||c.phone,p_avatar_color:c.avatar_color,p_notes:c.notes||null});
+  if(error){this.busy=false;this.note('No se pudo modificar: '+error.message);return}
+  try{if(this.customerEditPhotoChanged&&this.customerEditPhotoDraft)await this.uploadCustomerPhoto(c,this.customerEditPhotoDraft)}catch(e){this.note('Datos guardados, pero no se pudo subir la foto: '+(e.message||e))}
+  this.busy=false;this.modalEditCustomer=false;await this.refresh();this.note('Datos del cliente actualizados.');
  },
  startVoid(type,record){
   this.voidTarget={type,id:record.id,label:type==='credito'?(record.concept||'Crédito'):type==='prestamo'?(record.concept||'Préstamo'):type==='cambio_rapido'?'Cambio rápido USD':type==='cambio'?((record.source_currency||'')+' → '+(record.target_currency||'')):'Pago recibido'};
@@ -962,7 +983,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 <textarea x-model="customer.notes" class="field mt-3" placeholder="Observaciones"></textarea><button :disabled="busy" class="btn w-full py-3 rounded-xl font-semibold mt-5">Guardar cliente</button></form></div>
 
 <!-- MODAL EDITAR CLIENTE -->
-<div x-show="modalEditCustomer" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalEditCustomer=false"><form @submit.prevent="saveCustomerEdit()" class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><div><h3 class="font-semibold">Editar cliente</h3><p class="text-xs text-slate-500 mt-1">Misma información actual, mejor presentación CRM.</p></div><button type="button" @click="modalEditCustomer=false">×</button></div><label class="crm-photo-picker mb-4"><div class="crm-avatar" :style="!customerEditPhotoDraft?'background:'+customerEdit.avatar_color:''"><img x-show="customerEditPhotoDraft" :src="customerEditPhotoDraft"><span x-show="!customerEditPhotoDraft" class="font-bold text-white" x-text="customerInitials(customerEdit)"></span></div><div><p class="text-sm font-medium">Foto de perfil opcional</p><p class="text-xs text-slate-500">La imagen queda como mejora visual local, sin tocar Supabase.</p></div><input type="file" accept="image/*" class="hidden" @change="chooseCustomerImage($event,'edit')"></label><div class="grid sm:grid-cols-2 gap-3"><input x-model="customerEdit.full_name" class="field" placeholder="Nombre completo *"><input x-model="customerEdit.document_id" class="field" placeholder="Cédula / documento *"><input x-model="customerEdit.phone" class="field" placeholder="Teléfono *"><input x-model="customerEdit.whatsapp_phone" class="field" placeholder="WhatsApp *"><label class="field flex items-center gap-3 text-sm text-slate-400 sm:col-span-2">Color de avatar <input type="color" x-model="customerEdit.avatar_color" class="ml-auto bg-transparent"></label></div><textarea x-model="customerEdit.notes" class="field mt-3" placeholder="Observaciones"></textarea><button :disabled="busy" class="btn w-full py-3 rounded-xl font-semibold mt-5">Guardar cambios</button></form></div>
+<div x-show="modalEditCustomer" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalEditCustomer=false"><form @submit.prevent="saveCustomerEdit()" class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><div><h3 class="font-semibold">Editar cliente</h3><p class="text-xs text-slate-500 mt-1">Misma información actual, mejor presentación CRM.</p></div><button type="button" @click="modalEditCustomer=false">×</button></div><label class="crm-photo-picker mb-4"><div class="crm-avatar" :style="!customerEditPhotoDraft?'background:'+customerEdit.avatar_color:''"><img x-show="customerEditPhotoDraft" :src="customerEditPhotoDraft"><span x-show="!customerEditPhotoDraft" class="font-bold text-white" x-text="customerInitials(customerEdit)"></span></div><div><p class="text-sm font-medium">Foto de perfil opcional</p><p class="text-xs text-slate-500">La imagen se sincroniza automáticamente entre dispositivos.</p></div><input type="file" accept="image/*" class="hidden" @change="chooseCustomerImage($event,'edit')"></label><div class="grid sm:grid-cols-2 gap-3"><input x-model="customerEdit.full_name" class="field" placeholder="Nombre completo *"><input x-model="customerEdit.document_id" class="field" placeholder="Cédula / documento *"><input x-model="customerEdit.phone" class="field" placeholder="Teléfono *"><input x-model="customerEdit.whatsapp_phone" class="field" placeholder="WhatsApp *"><label class="field flex items-center gap-3 text-sm text-slate-400 sm:col-span-2">Color de avatar <input type="color" x-model="customerEdit.avatar_color" class="ml-auto bg-transparent"></label></div><textarea x-model="customerEdit.notes" class="field mt-3" placeholder="Observaciones"></textarea><button :disabled="busy" class="btn w-full py-3 rounded-xl font-semibold mt-5">Guardar cambios</button></form></div>
 
 <!-- MODAL ANULAR OPERACIÓN -->
 <div x-show="modalVoid" class="fixed inset-0 overlay z-40 grid place-items-center p-4" @click.self="modalVoid=false"><form @submit.prevent="confirmVoid()" class="panel rounded-3xl w-full max-w-lg p-6"><div class="flex justify-between mb-5"><div><h3 class="font-semibold text-lg">Anular operación</h3><p class="text-xs text-slate-500 mt-1">La operación dejará de sumar, pero quedará visible como anulada.</p></div><button type="button" @click="modalVoid=false">×</button></div><div class="warning-box rounded-xl p-4 text-sm mb-4"><b>Importante:</b> esta acción corrige saldos, gráficos y reportes activos. No borra el historial.</div><p class="text-sm mb-3">Operación: <b x-text="voidTarget?.label"></b></p><textarea x-model="voidReason" required minlength="5" class="field min-h-[92px]" placeholder="Motivo obligatorio, por ejemplo: monto registrado incorrectamente"></textarea><div class="flex gap-3 mt-5"><button type="button" @click="modalVoid=false" class="border border-white/10 rounded-xl px-5 py-3 flex-1">Cancelar</button><button :disabled="busy" class="danger-btn rounded-xl px-5 py-3 flex-1 font-semibold">Confirmar anulación</button></div></form></div>
