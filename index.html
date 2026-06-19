@@ -955,7 +955,48 @@ function cajaCloud(){return {
   let body=this.reportRows.length?this.reportRows.map(m=>`<tr><td>${this.movementDay(m)} ${this.movementTime(m)}</td><td>${m.concept||''}</td><td>${m.payment_method||''}</td><td style="text-align:right;color:${m.direction==='income'?'#087f5b':'#c2410c'}">${m.direction==='income'?'+':'-'} USD ${this.money(m.amount_usd)}</td></tr>`).join(''):`<tr><td colspan="4" style="text-align:center;color:#64748b;padding:28px">Sin operaciones para este período.</td></tr>`;
   let popup=window.open('','_blank');
   if(!popup){this.note('Permite ventanas emergentes para generar el reporte PDF.');return}
-  popup.document.write(`<!doctype html><html><head><meta charset="UTF-8"><title>Reporte ${this.org.business_name}</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111827;padding:38px;max-width:900px;margin:auto}.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:22px;border-bottom:2px solid #0b5345}.brand{display:flex;gap:17px;align-items:center}h1{font-size:21px;margin:0 0 6px}p{margin:3px 0;color:#64748b;font-size:12px}.badge{color:#0b5345;background:#e8f5f1;border:1px solid #b9e5d7;padding:8px 13px;border-radius:20px;font-size:12px;font-weight:bold}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:26px 0}.box{border:1px solid #e5e7eb;padding:15px;border-radius:12px}.box small{color:#64748b;display:block;margin-bottom:8px}.box b{font-size:19px}.green{color:#087f5b}.orange{color:#c2410c}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13px}th{background:#0b5345;color:white;text-align:left;padding:12px}td{padding:12px;border-bottom:1px solid #e5e7eb}.footer{margin-top:36px;font-size:11px;color:#64748b;border-top:1px solid #e5e7eb;padding-top:14px}@media print{body{padding:12px}.no-print{display:none}}</style></head><body><div class="header"><div class="brand">${logo}<div><h1>${this.org.business_name}</h1><p>${this.org.phone||''}</p><p>Reporte de operaciones · ${this.reportLabel}</p></div></div><span class="badge">La Caja App</span></div><div class="summary"><div class="box"><small>Ingresos</small><b class="green">USD ${this.money(this.reportIncome)}</b></div><div class="box"><small>Egresos</small><b class="orange">USD ${this.money(this.reportExpense)}</b></div><div class="box"><small>Balance neto</small><b>USD ${this.money(this.reportNet)}</b></div></div><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead><tbody>${body}</tbody></table><div class="footer">Generado el ${new Date().toLocaleString('es-VE',{timeZone:'America/Caracas'})} · Documento emitido desde La Caja App. Conserva este reporte como copia de control.</div><script>window.onload=()=>setTimeout(()=>window.print(),350)<\/script></body></html>`);
+  popup.document.write(`<!doctype html><html><head><meta charset="UTF-8"><title>Reporte ${this.org.business_name}</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111827;padding:38px;max-width:900px;margin:auto}.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:22px;border-bottom:2px solid #0b5345}.brand{display:flex;gap:17px;align-items:center}h1{font-size:21px;margin:0 0 6px}p{margin:3px 0;color:#64748b;font-size:12px}.badge{color:#0b5345;background:#e8f5f1;border:1px solid #b9e5d7;padding:8px 13px;border-radius:20px;font-size:12px;font-weight:bold}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:26px 0}.box{border:1px solid #e5e7eb;padding:15px;border-radius:12px}.box small{color:#64748b;display:block;margin-bottom:8px}.box b{font-size:19px}.green{color:#087f5b}.orange{color:#c2410c}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13px}th{background:#0b5345;color:white;text-align:left;padding:12px}td{padding:12px;border-bottom:1px solid #e5e7eb}.footer{margin-top:36px;font-size:11px;color:#64748b;border-top:1px solid #e5e7eb;padding-top:14px}@media print{body{padding:12px}.no-print{display:none}}
+
+/* FINAL MOBILE FIX: Resumen de operaciones actions must reorganize, not clip. Desktop unchanged. */
+@media(max-width:767px){
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6){
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+    box-sizing:border-box!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+    justify-content:stretch!important;
+    align-items:stretch!important;
+    box-sizing:border-box!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions > button{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+    box-sizing:border-box!important;
+    flex:none!important;
+  }
+}
+@media(max-width:390px){
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions{
+    grid-template-columns:1fr!important;
+  }
+}
+</style></head><body><div class="header"><div class="brand">${logo}<div><h1>${this.org.business_name}</h1><p>${this.org.phone||''}</p><p>Reporte de operaciones · ${this.reportLabel}</p></div></div><span class="badge">La Caja App</span></div><div class="summary"><div class="box"><small>Ingresos</small><b class="green">USD ${this.money(this.reportIncome)}</b></div><div class="box"><small>Egresos</small><b class="orange">USD ${this.money(this.reportExpense)}</b></div><div class="box"><small>Balance neto</small><b>USD ${this.money(this.reportNet)}</b></div></div><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead><tbody>${body}</tbody></table><div class="footer">Generado el ${new Date().toLocaleString('es-VE',{timeZone:'America/Caracas'})} · Documento emitido desde La Caja App. Conserva este reporte como copia de control.</div><script>window.onload=()=>setTimeout(()=>window.print(),350)<\/script></body></html>`);
   popup.document.close();
  },
  async install(){if(this.installPrompt){this.installPrompt.prompt();await this.installPrompt.userChoice;this.installPrompt=null}else this.help=true},
