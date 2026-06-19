@@ -133,6 +133,23 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}body{overscroll-behavior-x
  .crm-profile-hero .flex.gap-5.items-center>div:last-child{max-width:100%!important}
 }
 
+
+
+/* Mobile CRM selected customer actions overflow fix: mobile-only, desktop unchanged */
+@media(max-width:767px){
+ section[x-show="view==='clientes'"]{max-width:100%!important;overflow-x:hidden!important}
+ .crm-main,.crm-profile-hero,.crm-profile-hero>div,.crm-profile-hero *{min-width:0!important}
+ .crm-profile-hero{width:100%!important;max-width:100%!important;overflow:hidden!important}
+ .crm-profile-hero>div.flex{width:100%!important;max-width:100%!important;overflow:hidden!important}
+ .crm-profile-hero .flex.gap-5.items-center{width:100%!important;max-width:100%!important;overflow:hidden!important}
+ .crm-profile-hero .flex.gap-5.items-center>div:last-child{max-width:100%!important;min-width:0!important}
+ .crm-profile-hero .crm-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important;justify-content:stretch!important;align-items:stretch!important;align-self:stretch!important;flex:0 1 auto!important}
+ .crm-profile-hero .crm-actions>button{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;max-width:100%!important;min-width:0!important;flex:0 1 auto!important;white-space:normal!important;overflow:hidden!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-align:center!important;line-height:1.15!important;padding:10px 8px!important}
+}
+@media(max-width:390px){
+ .crm-profile-hero .crm-actions{grid-template-columns:1fr!important}
+}
+
 @media print{body{background:#fff;color:#111}.no-print{display:none!important}}
 
 /* Mobile CRM carousel UX: mobile-only visual reorganization. Desktop remains unchanged. */
