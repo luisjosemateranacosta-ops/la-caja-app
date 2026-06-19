@@ -614,6 +614,14 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}body{overscroll-behavior-x
     overflow:visible!important;
   }
 }
+
+/* TEMP TEST: CRM mobile parent overflow visibility only */
+@media(max-width:767px){
+  section[x-show="view==='clientes'"] .crm-shell,
+  section[x-show="view==='clientes'"] .crm-main{
+    overflow-x:visible!important;
+  }
+}
 </style>
 <script>
 const URL_SUPA='https://kgvbypdvanbrpkiatjgv.supabase.co';
