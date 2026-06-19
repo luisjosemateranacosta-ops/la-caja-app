@@ -380,46 +380,6 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}body{overscroll-behavior-x
 @media(max-width:390px){
  section[x-show="view==='clientes'"] .crm-op-actions{grid-template-columns:1fr!important}
 }
-
-/* MOBILE ONLY: compact 2-column operation action matrix. Desktop unchanged. */
-@media(max-width:767px){
-  section[x-show="view==='clientes'"] .crm-mobile-ops .crm-op-card{
-    max-width:100%!important;
-    min-width:0!important;
-    box-sizing:border-box!important;
-  }
-  section[x-show="view==='clientes'"] .crm-mobile-ops .crm-op-actions{
-    display:grid!important;
-    grid-template-columns:repeat(2,minmax(0,1fr))!important;
-    gap:8px!important;
-    width:100%!important;
-    max-width:100%!important;
-    min-width:0!important;
-    box-sizing:border-box!important;
-    overflow:visible!important;
-    align-items:stretch!important;
-  }
-  section[x-show="view==='clientes'"] .crm-mobile-ops .crm-op-actions>button{
-    display:inline-flex!important;
-    align-items:center!important;
-    justify-content:center!important;
-    width:100%!important;
-    max-width:100%!important;
-    min-width:0!important;
-    height:auto!important;
-    min-height:36px!important;
-    padding:8px 6px!important;
-    font-size:10.5px!important;
-    line-height:1.1!important;
-    white-space:normal!important;
-    text-align:center!important;
-    overflow:visible!important;
-    overflow-wrap:anywhere!important;
-    word-break:normal!important;
-    box-sizing:border-box!important;
-    flex:none!important;
-  }
-}
 </style>
 <script>
 const URL_SUPA='https://kgvbypdvanbrpkiatjgv.supabase.co';
