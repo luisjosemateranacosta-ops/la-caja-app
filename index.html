@@ -549,6 +549,64 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}body{overscroll-behavior-x
   .crm-table-wrap.crm-desktop-ops{display:block!important}
   .lc-mobile-operations{display:none!important}
 }
+
+/* LC MOBILE OPERATIONS: exact action-grid fix, no desktop impact */
+@media(max-width:767px){
+  section[x-show="view==='clientes'"] .lc-mobile-operations,
+  section[x-show="view==='clientes'"] .lc-mobile-operations *,
+  section[x-show="view==='clientes'"] .lc-mobile-operations *::before,
+  section[x-show="view==='clientes'"] .lc-mobile-operations *::after{
+    box-sizing:border-box!important;
+    min-width:0!important;
+  }
+  section[x-show="view==='clientes'"] .lc-mobile-operations{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+  }
+  section[x-show="view==='clientes'"] .lc-op-card{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+  }
+  section[x-show="view==='clientes'"] .lc-op-actions{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+    justify-items:stretch!important;
+    align-items:stretch!important;
+  }
+  section[x-show="view==='clientes'"] .lc-op-actions>.lc-op-btn{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    justify-self:stretch!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    inline-size:100%!important;
+    max-inline-size:100%!important;
+    min-inline-size:0!important;
+    margin:0!important;
+    padding:9px 6px!important;
+    line-height:1.12!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+    text-align:center!important;
+  }
+}
+
 </style>
 <script>
 const URL_SUPA='https://kgvbypdvanbrpkiatjgv.supabase.co';
@@ -1271,6 +1329,64 @@ function cajaCloud(){return {
     grid-template-columns:1fr!important;
   }
 }
+
+/* LC MOBILE OPERATIONS: exact action-grid fix, no desktop impact */
+@media(max-width:767px){
+  section[x-show="view==='clientes'"] .lc-mobile-operations,
+  section[x-show="view==='clientes'"] .lc-mobile-operations *,
+  section[x-show="view==='clientes'"] .lc-mobile-operations *::before,
+  section[x-show="view==='clientes'"] .lc-mobile-operations *::after{
+    box-sizing:border-box!important;
+    min-width:0!important;
+  }
+  section[x-show="view==='clientes'"] .lc-mobile-operations{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+  }
+  section[x-show="view==='clientes'"] .lc-op-card{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+  }
+  section[x-show="view==='clientes'"] .lc-op-actions{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+    justify-items:stretch!important;
+    align-items:stretch!important;
+  }
+  section[x-show="view==='clientes'"] .lc-op-actions>.lc-op-btn{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    justify-self:stretch!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    inline-size:100%!important;
+    max-inline-size:100%!important;
+    min-inline-size:0!important;
+    margin:0!important;
+    padding:9px 6px!important;
+    line-height:1.12!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+    text-align:center!important;
+  }
+}
+
 </style></head><body><div class="header"><div class="brand">${logo}<div><h1>${this.org.business_name}</h1><p>${this.org.phone||''}</p><p>Reporte de operaciones · ${this.reportLabel}</p></div></div><span class="badge">La Caja App</span></div><div class="summary"><div class="box"><small>Ingresos</small><b class="green">USD ${this.money(this.reportIncome)}</b></div><div class="box"><small>Egresos</small><b class="orange">USD ${this.money(this.reportExpense)}</b></div><div class="box"><small>Balance neto</small><b>USD ${this.money(this.reportNet)}</b></div></div><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead><tbody>${body}</tbody></table><div class="footer">Generado el ${new Date().toLocaleString('es-VE',{timeZone:'America/Caracas'})} · Documento emitido desde La Caja App. Conserva este reporte como copia de control.</div><script>window.onload=()=>setTimeout(()=>window.print(),350)<\/script></body></html>`);
   popup.document.close();
  },
@@ -1442,7 +1558,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
     <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-6"><div class="crm-stat"><p class="label">Operaciones</p><b class="text-xl" x-text="customerOperationCount(crmSelectedCustomer())"></b></div><div class="crm-stat"><p class="label">Total pendiente</p><b class="text-xl">$<span x-text="money(debt(crmSelectedCustomer()))"></span></b></div><div class="crm-stat"><p class="label">Total pagado</p><b class="text-xl text-live">$<span x-text="money(customerPaidTotal(crmSelectedCustomer()))"></span></b></div><div class="crm-stat"><p class="label">Próximo cobro</p><b class="text-xl" x-text="customerNextDue(crmSelectedCustomer())"></b></div></div>
    </section>
    <section class="grid xl:grid-cols-[1.35fr_.65fr] gap-5">
-    <article class="panel rounded-3xl p-5"><div class="flex items-center justify-between gap-3 mb-4"><div><h3 class="font-semibold">Resumen de operaciones</h3><p class="text-xs text-slate-500 mt-1">Misma información actual, organizada como CRM.</p></div></div><div class="crm-table-wrap crm-desktop-ops hidden md:block"><table class="crm-table"><thead><tr><th>Tipo</th><th>Estado</th><th>Capital</th><th>Pendiente</th><th>Próximo cobro</th><th class="text-right">Acciones</th></tr></thead><tbody><template x-for="a in accounts(crmSelectedCustomer())" :key="a.id"><tr><td><div class="capitalize font-semibold" x-text="a.kind"></div><p class="text-xs text-slate-500" x-text="a.concept"></p></td><td><span class="rounded-full px-2.5 py-1 text-[11px]" :class="a.balance>0?'bg-amber-500/10 text-amber-300':'bg-live/10 text-live'" x-text="a.balance>0?'Activo':'Pagado'"></span></td><td>$<span x-text="money(a.kind==='prestamo'?a.capitalPending:a.total)"></span></td><td>$<span x-text="money(a.balance)"></span></td><td x-text="a.next||customerNextDue(crmSelectedCustomer())"></td><td><div class="crm-actions"><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='prestamo'" @click="openLoanDetailFromAccount(crmSelectedCustomer(),a)" class="crm-quiet-action rounded-lg px-3 py-2 text-xs">Ficha</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openCharge(crmSelectedCustomer(),a)" class="crm-primary-action rounded-lg px-3 py-2 text-xs">Cobrar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openPay(crmSelectedCustomer(),a)" class="crm-secondary-action rounded-lg px-3 py-2 text-xs">Pago</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'" @click="openAccumulated(a,'add')" class="overdue-btn rounded-lg px-3 py-2 text-xs">Cuota no pagada</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'&&a.accumulated>0" @click="openAccumulated(a,'edit')" class="archive-btn rounded-lg px-3 py-2 text-xs">Ajustar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startVoid(a.kind,a)" class="crm-danger-action rounded-lg px-3 py-2 text-xs">Anular</button></div></td></tr></template></tbody></table><p x-show="!accounts(crmSelectedCustomer()).length" class="text-center py-10 text-slate-500 text-sm">Este cliente no tiene operaciones activas.</p></div><div class="lc-mobile-operations md:hidden" aria-label="Resumen de operaciones móvil"><div style="background:red;color:white;padding:12px;font-weight:900;border-radius:12px;margin-bottom:12px">MODO MOVIL NUEVO</div><template x-for="a in accounts(crmSelectedCustomer())" :key="a.id"><article class="lc-op-card"><header class="lc-op-head"><div class="min-w-0"><span class="lc-op-type" x-text="a.kind"></span><h4 x-text="a.concept||'Operación'"></h4></div><span class="lc-op-state" :class="a.balance>0?'is-active':'is-paid'" x-text="a.balance>0?'Activo':'Pagado'"></span></header><div class="lc-op-data"><div><span>Capital</span><b>$<em x-text="money(a.kind==='prestamo'?a.capitalPending:a.total)"></em></b></div><div><span>Pendiente</span><b>$<em x-text="money(a.balance)"></em></b></div><div><span>Próximo cobro</span><b x-text="a.next||customerNextDue(crmSelectedCustomer())"></b></div></div><div class="lc-op-actions"><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='prestamo'" @click="openLoanDetailFromAccount(crmSelectedCustomer(),a)" class="lc-op-btn is-muted">Ficha</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openCharge(crmSelectedCustomer(),a)" class="lc-op-btn is-primary">Cobrar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openPay(crmSelectedCustomer(),a)" class="lc-op-btn is-secondary">Pago</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'" @click="openAccumulated(a,'add')" class="lc-op-btn is-warning">Cuota no pagada</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'&&a.accumulated>0" @click="openAccumulated(a,'edit')" class="lc-op-btn is-warning-soft">Ajustar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startVoid(a.kind,a)" class="lc-op-btn is-danger">Anular</button></div></article></template><p x-show="!accounts(crmSelectedCustomer()).length" class="text-center py-10 text-slate-500 text-sm">Este cliente no tiene operaciones activas.</p></div></article>
+    <article class="panel rounded-3xl p-5"><div class="flex items-center justify-between gap-3 mb-4"><div><h3 class="font-semibold">Resumen de operaciones</h3><p class="text-xs text-slate-500 mt-1">Misma información actual, organizada como CRM.</p></div></div><div class="crm-table-wrap crm-desktop-ops hidden md:block"><table class="crm-table"><thead><tr><th>Tipo</th><th>Estado</th><th>Capital</th><th>Pendiente</th><th>Próximo cobro</th><th class="text-right">Acciones</th></tr></thead><tbody><template x-for="a in accounts(crmSelectedCustomer())" :key="a.id"><tr><td><div class="capitalize font-semibold" x-text="a.kind"></div><p class="text-xs text-slate-500" x-text="a.concept"></p></td><td><span class="rounded-full px-2.5 py-1 text-[11px]" :class="a.balance>0?'bg-amber-500/10 text-amber-300':'bg-live/10 text-live'" x-text="a.balance>0?'Activo':'Pagado'"></span></td><td>$<span x-text="money(a.kind==='prestamo'?a.capitalPending:a.total)"></span></td><td>$<span x-text="money(a.balance)"></span></td><td x-text="a.next||customerNextDue(crmSelectedCustomer())"></td><td><div class="crm-actions"><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='prestamo'" @click="openLoanDetailFromAccount(crmSelectedCustomer(),a)" class="crm-quiet-action rounded-lg px-3 py-2 text-xs">Ficha</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openCharge(crmSelectedCustomer(),a)" class="crm-primary-action rounded-lg px-3 py-2 text-xs">Cobrar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openPay(crmSelectedCustomer(),a)" class="crm-secondary-action rounded-lg px-3 py-2 text-xs">Pago</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'" @click="openAccumulated(a,'add')" class="overdue-btn rounded-lg px-3 py-2 text-xs">Cuota no pagada</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'&&a.accumulated>0" @click="openAccumulated(a,'edit')" class="archive-btn rounded-lg px-3 py-2 text-xs">Ajustar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startVoid(a.kind,a)" class="crm-danger-action rounded-lg px-3 py-2 text-xs">Anular</button></div></td></tr></template></tbody></table><p x-show="!accounts(crmSelectedCustomer()).length" class="text-center py-10 text-slate-500 text-sm">Este cliente no tiene operaciones activas.</p></div><div class="lc-mobile-operations md:hidden" aria-label="Resumen de operaciones móvil"><template x-for="a in accounts(crmSelectedCustomer())" :key="a.id"><article class="lc-op-card"><header class="lc-op-head"><div class="min-w-0"><span class="lc-op-type" x-text="a.kind"></span><h4 x-text="a.concept||'Operación'"></h4></div><span class="lc-op-state" :class="a.balance>0?'is-active':'is-paid'" x-text="a.balance>0?'Activo':'Pagado'"></span></header><div class="lc-op-data"><div><span>Capital</span><b>$<em x-text="money(a.kind==='prestamo'?a.capitalPending:a.total)"></em></b></div><div><span>Pendiente</span><b>$<em x-text="money(a.balance)"></em></b></div><div><span>Próximo cobro</span><b x-text="a.next||customerNextDue(crmSelectedCustomer())"></b></div></div><div class="lc-op-actions"><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='prestamo'" @click="openLoanDetailFromAccount(crmSelectedCustomer(),a)" class="lc-op-btn is-muted">Ficha</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openCharge(crmSelectedCustomer(),a)" class="lc-op-btn is-primary">Cobrar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="openPay(crmSelectedCustomer(),a)" class="lc-op-btn is-secondary">Pago</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'" @click="openAccumulated(a,'add')" class="lc-op-btn is-warning">Cuota no pagada</button><button x-show="crmSelectedCustomer().status!=='inactive'&&a.kind==='credito'&&a.accumulated>0" @click="openAccumulated(a,'edit')" class="lc-op-btn is-warning-soft">Ajustar</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startVoid(a.kind,a)" class="lc-op-btn is-danger">Anular</button></div></article></template><p x-show="!accounts(crmSelectedCustomer()).length" class="text-center py-10 text-slate-500 text-sm">Este cliente no tiene operaciones activas.</p></div></article>
     <aside class="panel rounded-3xl p-5"><h3 class="font-semibold mb-4">Acciones del cliente</h3><div class="grid gap-2"><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startEdit(crmSelectedCustomer())" class="crm-quiet-action rounded-xl px-4 py-3 text-sm text-left">Editar datos</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="beginOp('credito',crmSelectedCustomer())" class="crm-quiet-action rounded-xl px-4 py-3 text-sm text-left">Crear operación</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startCustomerAction(crmSelectedCustomer(),'archive')" class="archive-btn rounded-xl px-4 py-3 text-sm text-left">Archivar cliente</button><button x-show="crmSelectedCustomer().status!=='inactive'" @click="startCustomerAction(crmSelectedCustomer(),'delete')" class="crm-danger-action rounded-xl px-4 py-3 text-sm text-left">Eliminar si está vacío</button><button x-show="crmSelectedCustomer().status==='inactive'" @click="startCustomerAction(crmSelectedCustomer(),'restore')" class="crm-primary-action rounded-xl px-4 py-3 text-sm text-left">Reactivar cliente</button></div></aside>
    </section>
    <section class="panel rounded-3xl p-5"><div class="flex items-center justify-between gap-3 mb-4"><div><h3 class="font-semibold">Historial del cliente</h3><p class="text-xs text-slate-500 mt-1">Operaciones, pagos y cambios registrados con la información actual.</p></div><span class="text-xs text-slate-500"><span x-text="customerHistory(crmSelectedCustomer()).length"></span> eventos</span></div><div class="grid md:grid-cols-2 xl:grid-cols-3 gap-3"><template x-for="h in customerHistory(crmSelectedCustomer())" :key="h.type+h.title+h.date+h.amount"><div class="crm-history-item"><div class="flex justify-between gap-3"><div><p class="text-xs crm-muted" x-text="h.type"></p><b class="text-sm" x-text="h.title"></b></div><b>$<span x-text="money(h.amount)"></span></b></div><p class="text-xs text-slate-500 mt-2" x-text="h.date||'Sin fecha'"></p></div></template></div><p x-show="!customerHistory(crmSelectedCustomer()).length" class="text-center py-10 text-slate-500 text-sm">Sin historial visible todavía.</p></section>
