@@ -274,6 +274,89 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}body{overscroll-behavior-x
   section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions{grid-template-columns:1fr!important}
 }
 
+
+
+/* STRICT MOBILE ONLY: Resumen de operaciones as vertical cards, desktop untouched */
+@media(max-width:767px){
+  section[x-show="view==='clientes'"] .crm-table-wrap,
+  section[x-show="view==='clientes'"] .crm-table,
+  section[x-show="view==='clientes'"] .crm-table tbody,
+  section[x-show="view==='clientes'"] .crm-table tr,
+  section[x-show="view==='clientes'"] .crm-table td,
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6),
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions,
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions > button{
+    box-sizing:border-box!important;
+    max-width:100%!important;
+    min-width:0!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table-wrap{
+    width:100%!important;
+    overflow-x:hidden!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table,
+  section[x-show="view==='clientes'"] .crm-table tbody{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+    table-layout:auto!important;
+    border-spacing:0!important;
+    overflow-x:hidden!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table tr{
+    display:block!important;
+    width:100%!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table td{
+    display:block!important;
+    width:100%!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6){
+    display:block!important;
+    width:100%!important;
+    padding:10px 0 0!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+    justify-content:stretch!important;
+    align-items:stretch!important;
+    flex-wrap:initial!important;
+  }
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions > button{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    overflow-x:visible!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+    box-sizing:border-box!important;
+    flex:none!important;
+    text-align:center!important;
+  }
+}
+@media(max-width:390px){
+  section[x-show="view==='clientes'"] .crm-table td:nth-child(6) .crm-actions{
+    grid-template-columns:1fr!important;
+  }
+}
 </style>
 <script>
 const URL_SUPA='https://kgvbypdvanbrpkiatjgv.supabase.co';
